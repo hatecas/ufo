@@ -106,9 +106,26 @@ const ANALYSIS_PROMPT = (machineType, prizeType) => `
   "success_rate": "예상 성공 확률 (%)",
   "estimated_tries": "예상 소요 횟수",
   "estimated_cost": "예상 비용 (예: '약 500~1000엔')",
+  "drop_zone": {
+    "description": "최종 낙하 목표 구간 설명 (예: '두 봉 사이 틈', '출구 방향 앞쪽 가장자리')",
+    "x1_percent": "낙하 목표 구간 왼쪽 상단 X좌표 (%)",
+    "y1_percent": "낙하 목표 구간 왼쪽 상단 Y좌표 (%)",
+    "x2_percent": "낙하 목표 구간 오른쪽 하단 X좌표 (%)",
+    "y2_percent": "낙하 목표 구간 오른쪽 하단 Y좌표 (%)"
+  },
   "give_up_recommendation": false,
   "give_up_reason": ""
 }
+
+【ドロップゾーン（drop_zone）— 最終落下目標の指定が非常に重要】
+- drop_zoneは「景品が最終的に落ちるべき場所」を写真上の矩形（四角形）で指定する
+- 橋渡しの場合: 2本の棒の間の隙間（景品がここを通って落ちる）
+- 前落としの場合: 出口の前方
+- コーナーバランスの場合: 棚の下の落下口
+- x1_percent, y1_percent = 矩形の左上の座標（%）
+- x2_percent, y2_percent = 矩形の右下の座標（%）
+- 必ず写真上で実際に景品が通過・落下する場所を正確に指定すること
+- 全てのステップはこのdrop_zoneに向かって景品を移動させるための手順である
 
 【マーカー配置ルール - 非常に重要】
 - 各ステップのmarker_x_percentとmarker_y_percentは、実際に集計を降ろすべきポイントを示す

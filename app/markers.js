@@ -10,6 +10,7 @@ export function drawMarkers(canvas, analysisData, imageSrc) {
       const W = canvas.width, H = canvas.height;
       const positions = resolvePositions(analysisData.steps, W, H);
       drawBaseImage(ctx, img, W, H);
+      drawDropZone(ctx, analysisData.drop_zone, W, H);
       drawConnectors(ctx, positions, W, H);
       positions.forEach((pos, i) => {
         drawArrow(ctx, pos, analysisData.steps[i], W, H, 1.0);
@@ -39,6 +40,9 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
 
       for (let current = 0; current < analysisData.steps.length; current++) {
         drawBaseImage(ctx, img, W, H);
+
+        // 낙하 목표 구간 표시
+        drawDropZone(ctx, analysisData.drop_zone, W, H);
 
         // 이전 스텝들 — 흐리게 (완료된 스텝)
         for (let j = 0; j < current; j++) {
@@ -99,6 +103,79 @@ function resolvePositions(steps, W, H) {
     }
   }
   return positions;
+}
+
+// 낙하 목표 구간 — 초록 점선 사각형 + "낙하 목표" 라벨
+function drawDropZone(ctx, dropZone, W, H) {
+  if (!dropZone || !dropZone.x1_percent || !dropZone.y1_percent) return;
+  const scale = getScale(W, H);
+
+  const x1 = (parseFloat(dropZone.x1_percent) / 100) * W;
+  const y1 = (parseFloat(dropZone.y1_percent) / 100) * H;
+  const x2 = (parseFloat(dropZone.x2_percent) / 100) * W;
+  const y2 = (parseFloat(dropZone.y2_percent) / 100) * H;
+  const zw = x2 - x1;
+  const zh = y2 - y1;
+
+  // 초록 반투명 채우기
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 255, 157, 0.08)";
+  ctx.fillRect(x1, y1, zw, zh);
+
+  // 초록 점선 테두리
+  ctx.strokeStyle = "#00FF9D";
+  ctx.lineWidth = Math.max(2, 3 * scale);
+  ctx.setLineDash([8 * scale, 5 * scale]);
+  ctx.strokeRect(x1, y1, zw, zh);
+  ctx.setLineDash([]);
+
+  // 모서리 꼭짓점 강조
+  const cornerSize = Math.max(6, 10 * scale);
+  ctx.lineWidth = Math.max(2.5, 3.5 * scale);
+  ctx.strokeStyle = "#00FF9D";
+  ctx.setLineDash([]);
+  // 좌상
+  ctx.beginPath(); ctx.moveTo(x1, y1 + cornerSize); ctx.lineTo(x1, y1); ctx.lineTo(x1 + cornerSize, y1); ctx.stroke();
+  // 우상
+  ctx.beginPath(); ctx.moveTo(x2 - cornerSize, y1); ctx.lineTo(x2, y1); ctx.lineTo(x2, y1 + cornerSize); ctx.stroke();
+  // 좌하
+  ctx.beginPath(); ctx.moveTo(x1, y2 - cornerSize); ctx.lineTo(x1, y2); ctx.lineTo(x1 + cornerSize, y2); ctx.stroke();
+  // 우하
+  ctx.beginPath(); ctx.moveTo(x2 - cornerSize, y2); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2 - cornerSize); ctx.stroke();
+
+  // "⬇ 낙하 목표" 라벨
+  const labelFontSize = Math.max(11, 14 * scale);
+  ctx.font = `bold ${labelFontSize}px sans-serif`;
+  const labelText = "⬇ 낙하 목표";
+  const lw = ctx.measureText(labelText).width + 16 * scale;
+  const lh = (labelFontSize + 8) * scale / scale * 1;
+  const lx = x1 + zw / 2 - lw / 2;
+  const ly = y1 - lh - 6 * scale;
+
+  // 라벨이 이미지 위로 벗어나면 아래에 표시
+  const finalLy = ly < 4 ? y2 + 6 * scale : ly;
+
+  ctx.fillStyle = "rgba(0, 255, 157, 0.9)";
+  const r = 4 * scale;
+  ctx.beginPath();
+  ctx.moveTo(lx + r, finalLy);
+  ctx.lineTo(lx + lw - r, finalLy);
+  ctx.quadraticCurveTo(lx + lw, finalLy, lx + lw, finalLy + r);
+  ctx.lineTo(lx + lw, finalLy + lh - r);
+  ctx.quadraticCurveTo(lx + lw, finalLy + lh, lx + lw - r, finalLy + lh);
+  ctx.lineTo(lx + r, finalLy + lh);
+  ctx.quadraticCurveTo(lx, finalLy + lh, lx, finalLy + lh - r);
+  ctx.lineTo(lx, finalLy + r);
+  ctx.quadraticCurveTo(lx, finalLy, lx + r, finalLy);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#000";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(labelText, lx + lw / 2, finalLy + lh / 2);
+
+  ctx.restore();
 }
 
 function drawBaseImage(ctx, img, W, H) {

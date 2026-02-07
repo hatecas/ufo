@@ -261,6 +261,22 @@ body {
 }
 .tab-btn:active { transform: scale(0.96); }
 
+/* ===== Drop Zone Card ===== */
+.drop-zone-card {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 16px; border-radius: var(--radius); margin-bottom: 14px;
+  background: linear-gradient(135deg, rgba(0,255,157,0.08), rgba(0,255,157,0.03));
+  border: 2px solid rgba(0,255,157,0.25);
+}
+.drop-zone-icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
+.drop-zone-title {
+  font-size: 14px; font-weight: 800; color: var(--accent-green); margin-bottom: 4px;
+}
+.drop-zone-desc { font-size: 13px; color: #ddd; line-height: 1.5; font-weight: 600; }
+.drop-zone-hint {
+  font-size: 11px; color: var(--accent-green); margin-top: 6px; opacity: 0.7;
+}
+
 /* ===== Technique Card ===== */
 .technique-card {
   padding: 16px; border-radius: var(--radius); margin-bottom: 14px;

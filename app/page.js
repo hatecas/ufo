@@ -326,6 +326,18 @@ export default function Home() {
             {/* ===== 공략 탭 ===== */}
             {activeTab === 'strategy' && (
               <div className="animate-fade-in">
+                {/* 낙하 목표 안내 */}
+                {analysis.drop_zone?.description && (
+                  <div className="drop-zone-card">
+                    <div className="drop-zone-icon">⬇️</div>
+                    <div>
+                      <div className="drop-zone-title">낙하 목표</div>
+                      <div className="drop-zone-desc">{analysis.drop_zone.description}</div>
+                      <div className="drop-zone-hint">이미지에서 초록 점선 영역 = 상품이 떨어져야 할 곳</div>
+                    </div>
+                  </div>
+                )}
+
                 {/* 추천 테크닉 카드 */}
                 <div className="technique-card">
                   <div className="technique-header">
