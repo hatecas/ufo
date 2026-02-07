@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { TECHNIQUES, PRIZE_TYPES, MACHINE_TYPES, SETUP_TYPES, CLAW_TYPES, CORE_PRINCIPLES, MACHINE_GUIDE, STAFF_CHANCE_TIPS, TECHNIQUE_GUIDES } from './data';
 import { drawMarkers, drawStepImages } from './markers';
+import { generateTechniqueDiagrams } from './diagrams';
 
 export default function Home() {
   const [screen, setScreen] = useState('home');
@@ -21,9 +22,20 @@ export default function Home() {
   const [showGuide, setShowGuide] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentGuide, setCurrentGuide] = useState(null);
+  const [guideDiagrams, setGuideDiagrams] = useState([]);
 
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
+  const diagramCanvasRef = useRef(null);
+
+  useEffect(() => {
+    if (currentGuide && diagramCanvasRef.current) {
+      const imgs = generateTechniqueDiagrams(currentGuide, diagramCanvasRef.current);
+      setGuideDiagrams(imgs);
+    } else {
+      setGuideDiagrams([]);
+    }
+  }, [currentGuide]);
 
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files?.[0];
@@ -138,6 +150,7 @@ export default function Home() {
     <div className="app-root">
       <div className="bg-glow" />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
+      <canvas ref={diagramCanvasRef} style={{ display: 'none' }} />
       <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} style={{ display: 'none' }} />
 
       {/* ===== SIDEBAR (Desktop: 항상 표시 / Mobile: 슬라이드인) ===== */}
@@ -686,14 +699,15 @@ export default function Home() {
                 <h3 className="guide-section-title">🎮 단계별 공략</h3>
                 <div className="guide-steps">
                   {guide.steps.map((step, i) => (
-                    <div key={i} className="guide-step-card">
-                      <div className="guide-step-num">{i + 1}</div>
-                      <div className="guide-step-content">
+                    <div key={i} className="guide-step-card-v2">
+                      {guideDiagrams[i] && (
+                        <div className="guide-diagram-wrap">
+                          <img src={guideDiagrams[i]} alt={step.title} className="guide-diagram-img" />
+                        </div>
+                      )}
+                      <div className="guide-step-body">
                         <div className="guide-step-title">{step.title}</div>
                         <div className="guide-step-desc">{step.desc}</div>
-                        {step.diagram && (
-                          <pre className="guide-step-diagram">{step.diagram}</pre>
-                        )}
                         {step.tip && (
                           <div className="guide-step-tip">💡 {step.tip}</div>
                         )}

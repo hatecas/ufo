@@ -605,28 +605,20 @@ body {
   background: rgba(136,136,255,0.06); border: 1px solid rgba(136,136,255,0.1);
 }
 
-.guide-steps { display: flex; flex-direction: column; gap: 12px; }
-.guide-step-card {
-  display: flex; gap: 12px;
-  padding: 14px; border-radius: var(--radius);
+.guide-steps { display: flex; flex-direction: column; gap: 14px; }
+.guide-step-card-v2 {
+  border-radius: var(--radius); overflow: hidden;
   background: rgba(0,255,157,0.02); border: 1px solid rgba(0,255,157,0.06);
 }
-.guide-step-num {
-  width: 30px; height: 30px; border-radius: 50%;
-  background: var(--accent-red); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 800; flex-shrink: 0;
+.guide-diagram-wrap {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.guide-step-content { flex: 1; min-width: 0; }
+.guide-diagram-img {
+  width: 100%; display: block;
+}
+.guide-step-body { padding: 14px; }
 .guide-step-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; color: #ddd; }
 .guide-step-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 8px; }
-.guide-step-diagram {
-  font-family: 'Courier New', monospace; font-size: 12px;
-  color: var(--accent-gold); line-height: 1.5;
-  padding: 10px 12px; border-radius: 8px;
-  background: rgba(255,215,0,0.04); border: 1px solid rgba(255,215,0,0.1);
-  margin-bottom: 8px; white-space: pre-wrap; overflow-x: auto;
-}
 .guide-step-tip {
   font-size: 11px; color: var(--accent-green); line-height: 1.5;
   padding: 6px 10px; border-radius: 6px;
