@@ -1,10 +1,12 @@
 // ===== 공략 테크닉 =====
+// videoQuery: YouTube 검색어 (일본어가 결과가 좋음)
 export const TECHNIQUES = {
   hashiwatashi: {
     jp: "橋渡し",
     kr: "하시와타시",
     desc: "두 봉 사이에 놓인 상품을 돌리거나 밀어서 떨어뜨리기",
     icon: "🌉",
+    videoQuery: "UFOキャッチャー 橋渡し コツ",
   },
   tatehame: {
     jp: "縦ハメ",
@@ -12,6 +14,7 @@ export const TECHNIQUES = {
     desc: "박스를 세로로 세워 봉 사이로 빠지게 하기",
     icon: "📐",
     detail: "봉 간격이 좁을 때 유효. 3~5회 소요. 집게력 중간 요구.",
+    videoQuery: "UFOキャッチャー 縦ハメ やり方",
   },
   yokohame: {
     jp: "横ハメ",
@@ -19,54 +22,63 @@ export const TECHNIQUES = {
     desc: "박스를 가로로 눕혀 봉 사이로 빠지게 하기",
     icon: "📏",
     detail: "봉 간격이 넓을 때 유효. 5~8회 소요. 집게력 높음 요구.",
+    videoQuery: "UFOキャッチャー 横ハメ やり方",
   },
   yose: {
     jp: "寄せ",
     kr: "요세",
     desc: "집게 한쪽 발로 상품을 끌어오기",
     icon: "🤏",
+    videoQuery: "UFOキャッチャー 寄せ技 コツ",
   },
   zurashi: {
     jp: "ずらし",
     kr: "즈라시",
     desc: "상품을 조금씩 밀어 이동시키기",
     icon: "👉",
+    videoQuery: "UFOキャッチャー ずらし コツ",
   },
   kururinpa: {
     jp: "くるりんぱ",
     kr: "쿠루린파",
     desc: "상품 끝을 눌러 반동으로 넘기기",
     icon: "🔄",
+    videoQuery: "UFOキャッチャー くるりんぱ やり方",
   },
   takoyaki: {
     jp: "たこ焼き",
     kr: "타코야끼",
     desc: "공을 구멍에 넣는 확률형 방식",
     icon: "🎱",
+    videoQuery: "UFOキャッチャー たこ焼き 攻略",
   },
   tomekake: {
     jp: "止め掛け",
     kr: "토메카케",
     desc: "한쪽 발로 누르고 다른 발로 들어올리기",
     icon: "⚖️",
+    videoQuery: "UFOキャッチャー 止め掛け コツ",
   },
   chabudai: {
     jp: "ちゃぶ台",
     kr: "차부다이",
     desc: "뒤집기 기술 — 박스를 뒤집어서 떨어뜨리기",
     icon: "🔃",
+    videoQuery: "UFOキャッチャー ちゃぶ台返し やり方",
   },
   slide: {
     jp: "スライド",
     kr: "슬라이드",
     desc: "높은 봉 위에서 경품을 밀어올리기",
     icon: "➡️",
+    videoQuery: "UFOキャッチャー スライド技 コツ",
   },
   maeotoshi: {
     jp: "前落とし",
     kr: "마에오토시",
     desc: "뒷부분을 번갈아 당겨 앞으로 떨어뜨리기",
     icon: "⬇️",
+    videoQuery: "UFOキャッチャー 前落とし コツ",
   },
 };
 

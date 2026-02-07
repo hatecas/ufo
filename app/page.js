@@ -350,6 +350,17 @@ export default function Home() {
                       대안: <strong>{analysis.technique.alternative}</strong> ({analysis.technique.alternative_kr})
                     </div>
                   )}
+                  {/* 영상으로 보기 버튼 */}
+                  {(() => {
+                    const tech = getTechniqueInfo(analysis.technique?.primary);
+                    if (!tech?.videoQuery) return null;
+                    return (
+                      <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(tech.videoQuery)}`}
+                        target="_blank" rel="noopener noreferrer" className="video-link">
+                        ▶ 이 테크닉 영상으로 보기
+                      </a>
+                    );
+                  })()}
                 </div>
 
                 {/* 공략 스텝 */}
