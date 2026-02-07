@@ -97,6 +97,7 @@ const ANALYSIS_PROMPT = (machineType, prizeType) => `
       "where": "📍 집게를 내려놓을 정확한 위치. 예: '박스 왼쪽 끝에서 살짝 왼쪽 (약 1cm)'",
       "mechanism": "⚡ 집게가 닫힐 때 일어나는 일. 예: '오른쪽 발만 박스 왼쪽 모서리에 걸리면서 오른쪽으로 밀어냄'",
       "expected_result": "📦 이 동작 후 예상 결과. 예: '박스가 시계방향으로 약 10~15도 회전'",
+      "movement_type": "rotation_cw / rotation_ccw / slide / fall 중 택1. 이 동작으로 상품이 어떻게 움직이는지: rotation_cw=시계방향회전, rotation_ccw=반시계방향회전, slide=슬라이드이동, fall=낙하",
       "marker_x_percent": 50,
       "marker_y_percent": 50,
       "marker_label": "짧은 라벨 (4글자 이내)"

@@ -50,7 +50,8 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
           drawSingleConnector(ctx, positions[current - 1], positions[current], W, H, 0.6);
         }
 
-        // 현재 스텝 — 크고 밝게 강조 (집게 + 화살표)
+        // 현재 스텝 — 크고 밝게 강조 (집게 + 이동궤적 + 화살표)
+        drawMovementArc(ctx, positions[current], analysisData.steps[current], W, H, 0.9);
         drawArrow(ctx, positions[current], analysisData.steps[current], W, H, 1.0);
         drawClawOverlay(ctx, positions[current], analysisData.steps[current], W, H, 1.0, true);
 
@@ -72,11 +73,11 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
         const zoomCtx = zoomCanvas.getContext('2d');
         zoomCtx.drawImage(canvas, cx, cy, cropDim, cropDim, 0, 0, cropDim, cropDim);
 
-        // 확대 라벨
+        // 상단 스텝 라벨
         const zs = cropDim / 400;
         const zFontSize = Math.max(11, 13 * zs);
         zoomCtx.font = `bold ${zFontSize}px sans-serif`;
-        const zLabel = `🔍 Step ${analysisData.steps[current].step} 확대`;
+        const zLabel = `🔍 Step ${analysisData.steps[current].step}`;
         const zLabelW = zoomCtx.measureText(zLabel).width + 14;
         const zLabelH = zFontSize + 10;
         zoomCtx.fillStyle = 'rgba(0, 0, 0, 0.65)';
@@ -87,6 +88,39 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
         zoomCtx.textAlign = 'right';
         zoomCtx.textBaseline = 'top';
         zoomCtx.fillText(zLabel, cropDim - 14, 10);
+
+        // === 하단 텍스트 오버레이 — 핵심 설명을 이미지 위에 직접 표시 ===
+        const step = analysisData.steps[current];
+        const txtPad = Math.max(8, 10 * zs);
+        const actionFontSize = Math.max(13, 16 * zs);
+        const resultFontSize = Math.max(11, 13 * zs);
+        const lineGap = 4 * zs;
+
+        // 텍스트 줄 준비
+        const actionText = step.action || '';
+        const resultText = step.expected_result ? `→ ${step.expected_result}` : '';
+
+        // 바 높이 계산
+        const barH = txtPad * 2 + actionFontSize + (resultText ? resultFontSize + lineGap : 0);
+        const barY = cropDim - barH;
+
+        // 반투명 배경 바
+        zoomCtx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        zoomCtx.fillRect(0, barY, cropDim, barH);
+
+        // action 텍스트 (흰색, 굵게)
+        zoomCtx.font = `bold ${actionFontSize}px sans-serif`;
+        zoomCtx.fillStyle = '#FFF';
+        zoomCtx.textAlign = 'left';
+        zoomCtx.textBaseline = 'top';
+        zoomCtx.fillText(actionText, txtPad, barY + txtPad, cropDim - txtPad * 2);
+
+        // expected_result 텍스트 (초록색)
+        if (resultText) {
+          zoomCtx.font = `bold ${resultFontSize}px sans-serif`;
+          zoomCtx.fillStyle = '#81C784';
+          zoomCtx.fillText(resultText, txtPad, barY + txtPad + actionFontSize + lineGap, cropDim - txtPad * 2);
+        }
 
         results.push(zoomCanvas.toDataURL("image/jpeg", 0.9));
       }
@@ -301,6 +335,105 @@ function drawClawOverlay(ctx, pos, step, W, H, opacity, isCurrentStep) {
   }
 
   ctx.restore();
+}
+
+// ===== 이동 궤적 곡선 화살표 — 주황색 점선 =====
+// 상품이 어떻게 움직일지 큰 곡선 화살표로 표시 (영상 공략처럼)
+function drawMovementArc(ctx, pos, step, W, H, opacity) {
+  const scale = getScale(W, H);
+  const { x, y } = pos;
+  const moveType = step.movement_type || 'slide';
+  const dir = step.direction || 'center';
+  if (dir === 'center' && moveType === 'slide') return;
+
+  const arcSize = Math.max(35, 55 * scale);
+  const arcColor = '#FF6B35';
+
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.strokeStyle = arcColor;
+  ctx.fillStyle = arcColor;
+  ctx.lineWidth = Math.max(3, 5 * scale);
+  ctx.setLineDash([8 * scale, 5 * scale]);
+  ctx.lineCap = 'round';
+
+  if (moveType === 'rotation_cw' || moveType === 'rotation_ccw') {
+    // 회전 궤적 — 큰 호(arc) 화살표
+    const cw = moveType === 'rotation_cw';
+    const r = arcSize * 1.3;
+    // 호 중심을 집게 위치 아래쪽에
+    const acx = x;
+    const acy = y + arcSize * 0.5;
+    const startA = cw ? -Math.PI * 0.7 : -Math.PI * 0.3;
+    const endA = cw ? Math.PI * 0.15 : Math.PI * 0.7 + Math.PI;
+
+    ctx.beginPath();
+    ctx.arc(acx, acy, r, startA, endA, !cw);
+    ctx.stroke();
+
+    // 화살촉
+    const tipX = acx + r * Math.cos(endA);
+    const tipY = acy + r * Math.sin(endA);
+    const tangent = endA + (cw ? Math.PI / 2 : -Math.PI / 2);
+    ctx.setLineDash([]);
+    drawArcHead(ctx, tipX, tipY, tangent, scale);
+
+  } else if (moveType === 'fall') {
+    // 낙하 궤적 — 아래로 커브
+    const sx = x;
+    const sy = y + arcSize * 0.2;
+    const ex = x + (dir === 'left' ? -arcSize * 0.7 : dir === 'right' ? arcSize * 0.7 : 0);
+    const ey = y + arcSize * 2.2;
+    const cpx = (sx + ex) / 2 + (dir === 'left' ? -arcSize * 0.5 : dir === 'right' ? arcSize * 0.5 : -arcSize * 0.4);
+    const cpy = sy + arcSize * 0.8;
+
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(cpx, cpy, ex, ey);
+    ctx.stroke();
+
+    const angle = Math.atan2(ey - cpy, ex - cpx);
+    ctx.setLineDash([]);
+    drawArcHead(ctx, ex, ey, angle, scale);
+
+  } else {
+    // 슬라이드 — 방향으로 커브 화살표
+    let dx = 0, dy = 0;
+    if (dir === 'left') dx = -1;
+    else if (dir === 'right') dx = 1;
+    else if (dir === 'forward') dy = -1;
+    else if (dir === 'back') dy = 1;
+
+    const len = arcSize * 1.8;
+    const sx = x + dx * arcSize * 0.3;
+    const sy = y + dy * arcSize * 0.3;
+    const ex = x + dx * len;
+    const ey = y + dy * len;
+    const cpx = (sx + ex) / 2 + dy * arcSize * 0.4;
+    const cpy = (sy + ey) / 2 - dx * arcSize * 0.4;
+
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(cpx, cpy, ex, ey);
+    ctx.stroke();
+
+    const angle = Math.atan2(ey - cpy, ex - cpx);
+    ctx.setLineDash([]);
+    drawArcHead(ctx, ex, ey, angle, scale);
+  }
+
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawArcHead(ctx, x, y, angle, scale) {
+  const size = Math.max(10, 14 * scale);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - size * Math.cos(angle - 0.45), y - size * Math.sin(angle - 0.45));
+  ctx.lineTo(x - size * Math.cos(angle + 0.45), y - size * Math.sin(angle + 0.45));
+  ctx.closePath();
+  ctx.fill();
 }
 
 function drawArrow(ctx, pos, step, W, H, opacity) {
