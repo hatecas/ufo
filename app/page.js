@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { TECHNIQUES, PRIZE_TYPES, MACHINE_TYPES } from './data';
+import { TECHNIQUES, PRIZE_TYPES, MACHINE_TYPES, SETUP_TYPES, CLAW_TYPES, CORE_PRINCIPLES, MACHINE_GUIDE, STAFF_CHANCE_TIPS } from './data';
 import { drawMarkers } from './markers';
 
 export default function Home() {
@@ -16,6 +16,8 @@ export default function Home() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingText, setLoadingText] = useState('');
   const [markedImage, setMarkedImage] = useState(null);
+  const [activeTab, setActiveTab] = useState('strategy');
+  const [showGuide, setShowGuide] = useState(false);
 
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
@@ -41,12 +43,14 @@ export default function Home() {
     setLoadingProgress(0);
 
     const steps = [
-      { pct: 15, text: '🔍 이미지 스캔 중...' },
-      { pct: 30, text: '📐 상품 크기 및 위치 분석 중...' },
-      { pct: 50, text: '⚖️ 무게 중심 추정 중...' },
+      { pct: 12, text: '🔍 이미지 스캔 중...' },
+      { pct: 25, text: '🎰 세팅 유형 분류 중...' },
+      { pct: 40, text: '📐 봉 간격·상품 크기 측정 중...' },
+      { pct: 55, text: '⚖️ 무게 중심 추정 중...' },
       { pct: 70, text: '🎯 최적 공략 패턴 계산 중...' },
-      { pct: 85, text: '🗺️ 공략 포인트 마킹 중...' },
-      { pct: 95, text: '✅ 결과 생성 중...' },
+      { pct: 82, text: '🗺️ 공략 포인트 마킹 중...' },
+      { pct: 92, text: '💡 고수 팁 생성 중...' },
+      { pct: 97, text: '✅ 결과 정리 중...' },
     ];
 
     let idx = 0;
@@ -56,7 +60,7 @@ export default function Home() {
         setLoadingText(steps[idx].text);
         idx++;
       }
-    }, 800);
+    }, 700);
 
     try {
       const res = await fetch('/api/analyze', {
@@ -85,7 +89,7 @@ export default function Home() {
         const marked = await drawMarkers(canvasRef.current, data.analysis, image);
         setMarkedImage(marked);
         setScreen('result');
-      }, 600);
+      }, 500);
     } catch (err) {
       clearInterval(interval);
       setError(err.message || '분석 중 오류가 발생했습니다.');
@@ -103,285 +107,427 @@ export default function Home() {
     setAnalysis(null);
     setMarkedImage(null);
     setError(null);
+    setActiveTab('strategy');
   };
 
-  return (
-    <div style={{ position: 'relative', minHeight: '100vh', overflow: 'hidden' }}>
-      <div style={{
-        position: 'fixed', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(ellipse 600px 400px at 20% 20%, rgba(255,60,80,0.06), transparent), radial-gradient(ellipse 500px 500px at 80% 70%, rgba(0,255,157,0.04), transparent)',
-      }} />
+  // ===== 세팅 유형 찾기 헬퍼 =====
+  const getSetupInfo = (setupId) => SETUP_TYPES.find(s => s.id === setupId);
+  const getClawInfo = (clawId) => CLAW_TYPES.find(c => c.id === clawId);
+  const getTechniqueInfo = (jpName) => Object.values(TECHNIQUES).find(
+    t => t.jp === jpName || t.kr === jpName
+  );
 
+  return (
+    <div className="app-root">
+      <div className="bg-glow" />
       <canvas ref={canvasRef} style={{ display: 'none' }} />
       <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} style={{ display: 'none' }} />
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, margin: '0 auto', padding: '0 20px' }}>
+      <div className="container">
 
-        <header style={{ paddingTop: 40, paddingBottom: 20, textAlign: 'center' }}>
-          <div style={{ fontSize: 42, marginBottom: 4, filter: 'drop-shadow(0 0 20px rgba(255,60,80,0.3))' }}>🕹️</div>
-          <h1 style={{
-            fontSize: 26, fontWeight: 800, margin: 0,
-            background: 'linear-gradient(135deg, #FF3C50, #FF8C42, #FFD700)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-          }}>UFO Catcher Master</h1>
-          <p style={{ fontSize: 13, color: '#888', marginTop: 6, letterSpacing: 2, textTransform: 'uppercase' }}>
-            AI 크레인게임 공략 시스템
-          </p>
+        {/* ===== HEADER ===== */}
+        <header className="header">
+          <div className="header-icon">🕹️</div>
+          <h1 className="header-title">UFO Catcher Master</h1>
+          <p className="header-sub">AI 크레인게임 공략 시스템</p>
         </header>
 
+        {/* ===== HOME SCREEN ===== */}
         {screen === 'home' && (
           <div className="animate-fade-in">
-            <button onClick={() => fileInputRef.current?.click()} style={{
-              width: '100%', padding: '48px 24px', borderRadius: 20, cursor: 'pointer',
-              background: 'linear-gradient(135deg, rgba(255,60,80,0.12), rgba(255,140,66,0.08))',
-              border: '2px dashed rgba(255,60,80,0.3)',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-              color: 'inherit',
-            }}>
-              <span style={{ fontSize: 48 }}>📸</span>
-              <span style={{ fontSize: 18, fontWeight: 700, color: '#FF3C50' }}>UFO 캐쳐 사진 업로드</span>
-              <span style={{ fontSize: 13, color: '#888' }}>기계 앞에서 상품이 보이게 촬영해주세요</span>
+            <button onClick={() => fileInputRef.current?.click()} className="upload-btn">
+              <span style={{ fontSize: 44 }}>📸</span>
+              <span className="upload-btn-title">UFO 캐쳐 사진 촬영 / 업로드</span>
+              <span className="upload-btn-desc">기계 앞에서 상품이 보이게 촬영해주세요</span>
             </button>
 
-            <div style={{ marginTop: 28, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {/* 핵심 기능 */}
+            <div className="feature-grid">
               {[
-                { icon: '🎯', title: '위치 분석', desc: '상품의 정확한 위치와 각도' },
-                { icon: '⚖️', title: '무게 중심', desc: '무게 중심점 자동 추정' },
-                { icon: '🗺️', title: '공략 마킹', desc: '최적 포인트 이미지 표시' },
-                { icon: '📊', title: '성공 확률', desc: '예상 성공률 & 횟수' },
+                { icon: '🎰', title: '세팅 분류', desc: '7가지 세팅 자동 인식' },
+                { icon: '⚖️', title: '무게 중심', desc: '무게중심 자동 추정' },
+                { icon: '🗺️', title: '공략 마킹', desc: '포인트를 사진에 표시' },
+                { icon: '💰', title: '비용 예측', desc: '예상 비용·횟수 안내' },
               ].map((f, i) => (
-                <div key={i} style={{
-                  padding: '18px 14px', borderRadius: 14,
-                  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-                }}>
-                  <div style={{ fontSize: 24, marginBottom: 8 }}>{f.icon}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#ccc' }}>{f.title}</div>
-                  <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{f.desc}</div>
+                <div key={i} className="feature-card">
+                  <div style={{ fontSize: 22, marginBottom: 6 }}>{f.icon}</div>
+                  <div className="feature-card-title">{f.title}</div>
+                  <div className="feature-card-desc">{f.desc}</div>
                 </div>
               ))}
             </div>
 
-            <div style={{
-              marginTop: 28, padding: 20, borderRadius: 16,
-              background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
-            }}>
-              <h3 style={{ fontSize: 14, color: '#888', marginTop: 0, marginBottom: 14, fontWeight: 600 }}>지원 공략 테크닉</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {Object.values(TECHNIQUES).map((t, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{
-                      fontSize: 12, padding: '3px 8px', borderRadius: 6,
-                      background: 'rgba(255,215,0,0.12)', color: '#FFD700',
-                      fontWeight: 700, minWidth: 50, textAlign: 'center',
-                    }}>{t.jp}</span>
-                    <span style={{ fontSize: 12, color: '#aaa' }}>{t.kr} — {t.desc}</span>
+            {/* 공략 원칙 */}
+            <div className="section-card">
+              <h3 className="section-title">⚡ 공략 4원칙</h3>
+              <div className="principles-list">
+                {CORE_PRINCIPLES.map((p, i) => (
+                  <div key={i} className="principle-item">
+                    <span className="principle-icon">{p.icon}</span>
+                    <div>
+                      <div className="principle-title">{p.title}</div>
+                      <div className="principle-desc">{p.desc}</div>
+                    </div>
                   </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 테크닉 목록 */}
+            <div className="section-card">
+              <h3 className="section-title">🎯 지원 공략 테크닉</h3>
+              <div className="tech-list">
+                {Object.values(TECHNIQUES).slice(0, 6).map((t, i) => (
+                  <div key={i} className="tech-item">
+                    <span className="tech-badge">{t.jp}</span>
+                    <span className="tech-desc">{t.kr} — {t.desc}</span>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setShowGuide(!showGuide)} className="expand-btn">
+                {showGuide ? '접기 ▲' : `+ ${Object.keys(TECHNIQUES).length - 6}개 더보기`}
+              </button>
+              {showGuide && (
+                <div className="tech-list" style={{ marginTop: 8 }}>
+                  {Object.values(TECHNIQUES).slice(6).map((t, i) => (
+                    <div key={i} className="tech-item">
+                      <span className="tech-badge">{t.jp}</span>
+                      <span className="tech-desc">{t.kr} — {t.desc}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 기계 선택 가이드 */}
+            <div className="section-card">
+              <h3 className="section-title">💡 기계 선택 가이드</h3>
+              <div style={{ marginBottom: 12 }}>
+                <div className="guide-label guide-label-good">✅ 추천</div>
+                {MACHINE_GUIDE.recommended.map((r, i) => (
+                  <div key={i} className="guide-item">{r}</div>
+                ))}
+              </div>
+              <div>
+                <div className="guide-label guide-label-bad">❌ 피하기</div>
+                {MACHINE_GUIDE.avoid.map((a, i) => (
+                  <div key={i} className="guide-item">{a}</div>
                 ))}
               </div>
             </div>
           </div>
         )}
 
+        {/* ===== UPLOAD SCREEN ===== */}
         {screen === 'upload' && (
           <div className="animate-fade-in">
-            {error && (
-              <div style={{
-                padding: '12px 16px', borderRadius: 12, marginBottom: 16,
-                background: 'rgba(255,60,60,0.12)', border: '1px solid rgba(255,60,60,0.3)', color: '#FF6060', fontSize: 13,
-              }}>{error}</div>
-            )}
+            {error && <div className="error-box">{error}</div>}
 
-            <div style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 20, border: '2px solid rgba(255,60,80,0.2)', position: 'relative' }}>
-              <img src={image} alt="uploaded" style={{ width: '100%', display: 'block' }} />
-              <button onClick={() => fileInputRef.current?.click()} style={{
-                position: 'absolute', bottom: 12, right: 12, padding: '8px 14px', borderRadius: 10,
-                background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 12, cursor: 'pointer',
-              }}>📷 다시 촬영</button>
+            <div className="preview-wrap">
+              <img src={image} alt="uploaded" className="preview-img" />
+              <button onClick={() => fileInputRef.current?.click()} className="retake-btn">📷 다시 촬영</button>
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: '#aaa', display: 'block', marginBottom: 10 }}>기계 종류 선택</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {/* 기계 종류 */}
+            <div className="select-section">
+              <label className="select-label">🎰 기계 종류</label>
+              <div className="machine-grid">
                 {MACHINE_TYPES.map(m => (
-                  <button key={m.id} onClick={() => setMachineType(m.id)} style={{
-                    padding: '14px 12px', borderRadius: 12, cursor: 'pointer',
-                    background: machineType === m.id ? `${m.color}18` : 'rgba(255,255,255,0.03)',
-                    border: `2px solid ${machineType === m.id ? m.color : 'rgba(255,255,255,0.06)'}`,
-                    color: machineType === m.id ? m.color : '#888', fontSize: 12, fontWeight: 600, textAlign: 'left',
-                  }}>{m.label}</button>
+                  <button key={m.id} onClick={() => setMachineType(m.id)} className={`select-card ${machineType === m.id ? 'active' : ''}`}
+                    style={{ '--accent': m.color }}>
+                    <span className="select-card-text">{m.label}</span>
+                  </button>
                 ))}
               </div>
             </div>
 
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: '#aaa', display: 'block', marginBottom: 10 }}>상품 종류 선택</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* 상품 종류 */}
+            <div className="select-section">
+              <label className="select-label">🎁 상품 종류</label>
+              <div className="prize-list">
                 {PRIZE_TYPES.map(p => (
-                  <button key={p.id} onClick={() => setPrizeType(p.id)} style={{
-                    padding: '14px 16px', borderRadius: 12, cursor: 'pointer',
-                    background: prizeType === p.id ? 'rgba(0,255,157,0.08)' : 'rgba(255,255,255,0.03)',
-                    border: `2px solid ${prizeType === p.id ? '#00FF9D' : 'rgba(255,255,255,0.06)'}`,
-                    color: prizeType === p.id ? '#00FF9D' : '#888', fontSize: 13, fontWeight: 500,
-                    display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left',
-                  }}>
+                  <button key={p.id} onClick={() => setPrizeType(p.id)} className={`prize-card ${prizeType === p.id ? 'active' : ''}`}>
                     <span style={{ fontSize: 20 }}>{p.icon}</span>
                     <div>
-                      <div style={{ fontWeight: 700 }}>{p.label}</div>
-                      <div style={{ fontSize: 11, opacity: 0.7 }}>약 {p.weight}</div>
+                      <div className="prize-card-name">{p.label}</div>
+                      <div className="prize-card-weight">약 {p.weight}</div>
                     </div>
                   </button>
                 ))}
               </div>
             </div>
 
-            <button onClick={runAnalysis} disabled={!machineType || !prizeType} style={{
-              width: '100%', padding: 18, borderRadius: 14, border: 'none',
-              background: (!machineType || !prizeType) ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #FF3C50, #FF6B35)',
-              color: (!machineType || !prizeType) ? '#555' : '#FFF',
-              fontSize: 16, fontWeight: 800, cursor: (!machineType || !prizeType) ? 'not-allowed' : 'pointer',
-              boxShadow: (!machineType || !prizeType) ? 'none' : '0 4px 24px rgba(255,60,80,0.3)',
-            }}>🎯 AI 공략 분석 시작</button>
+            <button onClick={runAnalysis} disabled={!machineType || !prizeType} className={`analyze-btn ${(!machineType || !prizeType) ? 'disabled' : ''}`}>
+              🎯 AI 공략 분석 시작
+            </button>
 
-            <button onClick={resetAll} style={{
-              width: '100%', padding: 14, marginTop: 10, background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#666', fontSize: 13, cursor: 'pointer',
-            }}>처음으로</button>
+            <button onClick={resetAll} className="back-btn">처음으로</button>
           </div>
         )}
 
+        {/* ===== ANALYZING SCREEN ===== */}
         {screen === 'analyzing' && (
-          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 40, paddingBottom: 40 }}>
-            <div style={{
-              width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,60,80,0.08)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 28, position: 'relative',
-            }}>
-              <div className="animate-pulse-scale" style={{ fontSize: 50 }}>🔬</div>
-              <svg className="animate-spin-slow" style={{ position: 'absolute', top: -4, left: -4, width: 128, height: 128 }} viewBox="0 0 128 128">
-                <circle cx="64" cy="64" r="60" fill="none" stroke="rgba(255,60,80,0.15)" strokeWidth="3" />
+          <div className="animate-fade-in analyzing-screen">
+            <div className="analyzing-circle">
+              <div className="animate-pulse-scale" style={{ fontSize: 48 }}>🔬</div>
+              <svg className="animate-spin-slow analyzing-ring" viewBox="0 0 128 128">
+                <circle cx="64" cy="64" r="60" fill="none" stroke="rgba(255,60,80,0.12)" strokeWidth="3" />
                 <circle cx="64" cy="64" r="60" fill="none" stroke="#FF3C50" strokeWidth="3"
                   strokeDasharray={`${loadingProgress * 3.77} 377`} strokeLinecap="round"
                   transform="rotate(-90 64 64)" style={{ transition: 'stroke-dasharray 0.5s ease' }} />
               </svg>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{loadingText || '분석 준비 중...'}</div>
-            <div style={{ width: '100%', maxWidth: 300, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.06)', overflow: 'hidden', marginTop: 8 }}>
-              <div style={{ height: '100%', borderRadius: 3, background: 'linear-gradient(90deg, #FF3C50, #FFD700)', width: `${loadingProgress}%`, transition: 'width 0.5s ease' }} />
+            <div className="analyzing-text">{loadingText || '분석 준비 중...'}</div>
+            <div className="progress-bar">
+              <div className="progress-fill" style={{ width: `${loadingProgress}%` }} />
             </div>
-            <div style={{ fontSize: 12, color: '#555', marginTop: 8 }}>{loadingProgress}%</div>
+            <div className="analyzing-pct">{loadingProgress}%</div>
           </div>
         )}
 
+        {/* ===== RESULT SCREEN ===== */}
         {screen === 'result' && analysis && (
-          <div className="animate-fade-in" style={{ paddingBottom: 40 }}>
+          <div className="animate-fade-in result-screen">
+
+            {/* 포기 권고 */}
             {analysis.give_up_recommendation && (
-              <div style={{ padding: '16px 18px', borderRadius: 14, marginBottom: 16, background: 'rgba(255,60,60,0.12)', border: '1px solid rgba(255,60,60,0.3)' }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#FF6060', marginBottom: 6 }}>⚠️ 포기 권고</div>
-                <div style={{ fontSize: 13, color: '#cc8888' }}>{analysis.give_up_reason}</div>
+              <div className="giveup-box">
+                <div className="giveup-title">⚠️ 포기 권고</div>
+                <div className="giveup-reason">{analysis.give_up_reason}</div>
               </div>
             )}
 
+            {/* 마킹 이미지 */}
             {markedImage && (
-              <div style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 20, border: '2px solid rgba(0,255,157,0.2)' }}>
-                <img src={markedImage} alt="analysis" style={{ width: '100%', display: 'block' }} />
+              <div className="result-image-wrap">
+                <img src={markedImage} alt="analysis" className="result-image" />
               </div>
             )}
 
-            <div style={{ padding: 18, borderRadius: 14, marginBottom: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#FF8C42', margin: '0 0 12px' }}>📋 상황 분석</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <InfoCell label="기계" value={analysis.situation_analysis?.machine_type} />
-                <InfoCell label="상품" value={analysis.situation_analysis?.prize_type} />
-                <InfoCell label="무게중심" value={analysis.situation_analysis?.weight_center} />
-                <InfoCell label="난이도" value={
-                  '🔴'.repeat(Math.min(analysis.situation_analysis?.difficulty || 0, 10)) +
-                  '⚪'.repeat(10 - Math.min(analysis.situation_analysis?.difficulty || 0, 10))
-                } />
-              </div>
-              <div style={{ marginTop: 10, fontSize: 12, color: '#999', lineHeight: 1.6 }}>
-                {analysis.situation_analysis?.current_position}
-              </div>
-              {analysis.situation_analysis?.not_visible?.length > 0 && (
-                <div style={{
-                  marginTop: 10, padding: '8px 12px', borderRadius: 8,
-                  background: 'rgba(255,165,0,0.08)', border: '1px solid rgba(255,165,0,0.15)',
-                  fontSize: 11, color: '#cc9944', lineHeight: 1.5,
-                }}>📷 사진에서 확인 불가: {analysis.situation_analysis.not_visible.join(', ')}</div>
-              )}
-            </div>
-
-            <div style={{
-              padding: 18, borderRadius: 14, marginBottom: 14,
-              background: 'linear-gradient(135deg, rgba(255,215,0,0.06), rgba(255,140,66,0.04))',
-              border: '1px solid rgba(255,215,0,0.15)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <span style={{ padding: '4px 10px', borderRadius: 8, background: 'rgba(255,215,0,0.15)', color: '#FFD700', fontSize: 13, fontWeight: 800 }}>
-                  {analysis.technique?.primary}
-                </span>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>{analysis.technique?.primary_kr}</span>
-              </div>
-              <p style={{ fontSize: 12, color: '#aaa', margin: 0, lineHeight: 1.6 }}>{analysis.technique?.reason}</p>
-            </div>
-
-            <div style={{ marginBottom: 14 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 800, color: '#00FF9D', marginBottom: 14 }}>🎮 공략 스텝</h3>
-              {analysis.steps?.map((step, i) => (
-                <div key={i} style={{
-                  display: 'flex', gap: 14, marginBottom: 14, padding: 14, borderRadius: 12,
-                  background: 'rgba(0,255,157,0.03)', border: '1px solid rgba(0,255,157,0.08)',
-                }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%', background: '#FF3C50', color: '#FFF',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0,
-                  }}>{step.step}</div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-                      {step.action}
-                      <span style={{ marginLeft: 8, fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(100,100,255,0.15)', color: '#8888FF' }}>
-                        {step.direction === 'left' && '← 왼쪽'}
-                        {step.direction === 'right' && '→ 오른쪽'}
-                        {step.direction === 'forward' && '↑ 앞쪽'}
-                        {step.direction === 'back' && '↓ 뒤쪽'}
-                        {step.direction === 'center' && '◎ 센터'}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>{step.detail}</div>
-                  </div>
-                </div>
+            {/* 탭 네비게이션 */}
+            <div className="tab-nav">
+              {[
+                { id: 'strategy', label: '공략', icon: '🎯' },
+                { id: 'analysis', label: '분석', icon: '📋' },
+                { id: 'tips', label: '팁', icon: '💡' },
+              ].map(tab => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                  className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}>
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
               ))}
             </div>
 
-            {analysis.warnings?.length > 0 && (
-              <div style={{ padding: 16, borderRadius: 14, marginBottom: 14, background: 'rgba(255,165,0,0.06)', border: '1px solid rgba(255,165,0,0.12)' }}>
-                <h3 style={{ fontSize: 13, fontWeight: 800, color: '#FFA500', margin: '0 0 10px' }}>⚠️ 주의사항</h3>
-                {analysis.warnings.map((w, i) => (
-                  <div key={i} style={{ fontSize: 12, color: '#cc9944', marginBottom: 6, lineHeight: 1.5, paddingLeft: 12, borderLeft: '2px solid rgba(255,165,0,0.2)' }}>{w}</div>
-                ))}
+            {/* ===== 공략 탭 ===== */}
+            {activeTab === 'strategy' && (
+              <div className="animate-fade-in">
+                {/* 추천 테크닉 카드 */}
+                <div className="technique-card">
+                  <div className="technique-header">
+                    <span className="technique-badge">{analysis.technique?.primary}</span>
+                    <span className="technique-name">{analysis.technique?.primary_kr}</span>
+                  </div>
+                  <p className="technique-reason">{analysis.technique?.reason}</p>
+                  {analysis.technique?.alternative && (
+                    <div className="technique-alt">
+                      대안: <strong>{analysis.technique.alternative}</strong> ({analysis.technique.alternative_kr})
+                    </div>
+                  )}
+                </div>
+
+                {/* 공략 스텝 */}
+                <div className="steps-section">
+                  <h3 className="section-title">🎮 공략 스텝</h3>
+                  {analysis.steps?.map((step, i) => (
+                    <div key={i} className="step-card">
+                      <div className="step-header">
+                        <div className="step-number">{step.step}</div>
+                        <div className="step-content">
+                          <div className="step-action">
+                            {step.action}
+                            <span className="step-direction">
+                              {step.direction === 'left' && '← 왼쪽'}
+                              {step.direction === 'right' && '→ 오른쪽'}
+                              {step.direction === 'forward' && '↑ 앞쪽'}
+                              {step.direction === 'back' && '↓ 뒤쪽'}
+                              {step.direction === 'center' && '◎ 센터'}
+                            </span>
+                          </div>
+                          <div className="step-detail">{step.detail}</div>
+                        </div>
+                      </div>
+                      {i < (analysis.steps.length - 1) && <div className="step-connector" />}
+                    </div>
+                  ))}
+                </div>
+
+                {/* 성공률·비용 요약 */}
+                <div className="stats-grid">
+                  <div className="stat-card stat-green">
+                    <div className="stat-value">{analysis.success_rate}</div>
+                    <div className="stat-label">예상 성공률</div>
+                  </div>
+                  <div className="stat-card stat-blue">
+                    <div className="stat-value">{analysis.estimated_tries}</div>
+                    <div className="stat-label">예상 횟수</div>
+                  </div>
+                  {analysis.estimated_cost && (
+                    <div className="stat-card stat-gold">
+                      <div className="stat-value" style={{ fontSize: 18 }}>{analysis.estimated_cost}</div>
+                      <div className="stat-label">예상 비용</div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-              <div style={{ padding: 18, borderRadius: 14, textAlign: 'center', background: 'rgba(0,255,157,0.05)', border: '1px solid rgba(0,255,157,0.12)' }}>
-                <div style={{ fontSize: 28, fontWeight: 900, color: '#00FF9D' }}>{analysis.success_rate}</div>
-                <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>예상 성공률</div>
-              </div>
-              <div style={{ padding: 18, borderRadius: 14, textAlign: 'center', background: 'rgba(100,100,255,0.05)', border: '1px solid rgba(100,100,255,0.12)' }}>
-                <div style={{ fontSize: 28, fontWeight: 900, color: '#8888FF' }}>{analysis.estimated_tries}</div>
-                <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>예상 소요 횟수</div>
-              </div>
-            </div>
+            {/* ===== 분석 탭 ===== */}
+            {activeTab === 'analysis' && (
+              <div className="animate-fade-in">
+                {/* 세팅 유형 */}
+                {analysis.situation_analysis?.setup_type && (
+                  <div className="info-card">
+                    <h3 className="info-card-title">🎰 세팅 유형</h3>
+                    {(() => {
+                      const setup = getSetupInfo(analysis.situation_analysis.setup_type);
+                      return setup ? (
+                        <div className="setup-info">
+                          <div className="setup-header">
+                            <span className="setup-icon">{setup.icon}</span>
+                            <div>
+                              <div className="setup-name">{setup.label}</div>
+                              <div className="setup-desc">{setup.desc}</div>
+                            </div>
+                          </div>
+                          {setup.warning && <div className="setup-warning">⚠️ {setup.warning}</div>}
+                          {analysis.situation_analysis.setup_detail && (
+                            <div className="setup-detail">{analysis.situation_analysis.setup_detail}</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="info-value">{analysis.situation_analysis.setup_type}</div>
+                      );
+                    })()}
+                  </div>
+                )}
 
-            <button onClick={resetAll} style={{
-              width: '100%', padding: 16, borderRadius: 14, border: 'none',
-              background: 'linear-gradient(135deg, #FF3C50, #FF6B35)',
-              color: '#FFF', fontSize: 15, fontWeight: 800, cursor: 'pointer',
-              boxShadow: '0 4px 24px rgba(255,60,80,0.3)',
-            }}>🕹️ 새로운 분석 시작</button>
+                {/* 상황 분석 그리드 */}
+                <div className="info-card">
+                  <h3 className="info-card-title">📋 상황 분석</h3>
+                  <div className="analysis-grid">
+                    <InfoCell label="기계" value={analysis.situation_analysis?.machine_type} />
+                    <InfoCell label="상품" value={analysis.situation_analysis?.prize_type} />
+                    <InfoCell label="무게중심" value={analysis.situation_analysis?.weight_center} />
+                    <InfoCell label="난이도" value={
+                      <span className="difficulty-dots">
+                        {'🔴'.repeat(Math.min(analysis.situation_analysis?.difficulty || 0, 10))}
+                        {'⚪'.repeat(10 - Math.min(analysis.situation_analysis?.difficulty || 0, 10))}
+                        <span className="difficulty-num">{analysis.situation_analysis?.difficulty}/10</span>
+                      </span>
+                    } />
+                    {analysis.situation_analysis?.bar_gap_ratio && (
+                      <InfoCell label="봉 간격 비율" value={analysis.situation_analysis.bar_gap_ratio} />
+                    )}
+                    {analysis.situation_analysis?.tilt_angle && (
+                      <InfoCell label="기울기 각도" value={analysis.situation_analysis.tilt_angle} />
+                    )}
+                  </div>
+                  {analysis.situation_analysis?.current_position && (
+                    <div className="position-desc">{analysis.situation_analysis.current_position}</div>
+                  )}
+                  {analysis.situation_analysis?.not_visible?.length > 0 && (
+                    <div className="not-visible-box">
+                      📷 사진에서 확인 불가: {analysis.situation_analysis.not_visible.join(', ')}
+                    </div>
+                  )}
+                </div>
+
+                {/* 집게 정보 */}
+                {analysis.situation_analysis?.claw_type && analysis.situation_analysis.claw_type !== 'unknown' && (
+                  <div className="info-card">
+                    <h3 className="info-card-title">🤖 집게 정보</h3>
+                    {(() => {
+                      const claw = getClawInfo(analysis.situation_analysis.claw_type);
+                      return claw ? (
+                        <div className="claw-info">
+                          <span className="claw-icon">{claw.icon}</span>
+                          <div>
+                            <div className="claw-name">{claw.label}</div>
+                            <div className="claw-desc">{claw.desc}</div>
+                            {claw.tip && <div className="claw-tip">💡 {claw.tip}</div>}
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
+                    {analysis.situation_analysis.claw_detail && (
+                      <div className="claw-detail-text">{analysis.situation_analysis.claw_detail}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ===== 팁 탭 ===== */}
+            {activeTab === 'tips' && (
+              <div className="animate-fade-in">
+                {/* 주의사항 */}
+                {analysis.warnings?.length > 0 && (
+                  <div className="tips-card tips-warning">
+                    <h3 className="tips-title">⚠️ 주의사항</h3>
+                    {analysis.warnings.map((w, i) => (
+                      <div key={i} className="tip-item tip-warning">{w}</div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 고수 팁 */}
+                {analysis.pro_tips?.length > 0 && (
+                  <div className="tips-card tips-pro">
+                    <h3 className="tips-title">🏆 고수 팁</h3>
+                    {analysis.pro_tips.map((t, i) => (
+                      <div key={i} className="tip-item tip-pro">{t}</div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 직원 찬스 */}
+                {analysis.staff_chance && (
+                  <div className="tips-card tips-staff">
+                    <h3 className="tips-title">🙋 직원 찬스</h3>
+                    <div className="staff-chance-text">{analysis.staff_chance}</div>
+                    <div className="staff-tips">
+                      <div className="staff-tips-title">일반적인 직원 찬스 타이밍:</div>
+                      {STAFF_CHANCE_TIPS.map((t, i) => (
+                        <div key={i} className="staff-tip-item">• {t}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 세팅별 핵심 포인트 */}
+                {analysis.situation_analysis?.setup_type && (
+                  <div className="tips-card">
+                    <h3 className="tips-title">📖 세팅별 핵심 포인트</h3>
+                    {(() => {
+                      const setup = getSetupInfo(analysis.situation_analysis.setup_type);
+                      if (!setup?.analysisPoints) return null;
+                      return setup.analysisPoints.map((point, i) => (
+                        <div key={i} className="tip-item tip-info">✓ {point}</div>
+                      ));
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 새 분석 버튼 */}
+            <button onClick={resetAll} className="new-analysis-btn">🕹️ 새로운 분석 시작</button>
           </div>
         )}
 
-        <footer style={{ textAlign: 'center', padding: '30px 0 20px', fontSize: 11, color: '#444' }}>
-          UFO Catcher Master v1.0 — AI-Powered Crane Game Strategy
+        <footer className="footer">
+          UFO Catcher Master v2.0 — AI-Powered Crane Game Strategy
         </footer>
       </div>
     </div>
@@ -390,9 +536,9 @@ export default function Home() {
 
 function InfoCell({ label, value }) {
   return (
-    <div>
-      <div style={{ fontSize: 10, color: '#666', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</div>
-      <div style={{ fontSize: 12, color: '#ccc', fontWeight: 600 }}>{value || '—'}</div>
+    <div className="info-cell">
+      <div className="info-cell-label">{label}</div>
+      <div className="info-cell-value">{value || '—'}</div>
     </div>
   );
 }
