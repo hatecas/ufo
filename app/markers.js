@@ -1,6 +1,6 @@
 // ===== markers.js =====
-// 집게를 내려야 할 위치만 3D로 명확하게 표시
-// 복잡한 화살표/궤적 전부 제거 — 오직 "여기에 집게를 내려라" 만 보여줌
+// 사진의 카메라 시점에 맞춰 3D 집게를 원근 변환하여 표시
+// "여기에 집게를 내려라" 만 보여줌
 
 // ===== 전체 오버뷰 이미지 =====
 export function drawMarkers(canvas, analysisData, imageSrc) {
@@ -12,9 +12,9 @@ export function drawMarkers(canvas, analysisData, imageSrc) {
       canvas.height = img.height;
       const ctx = canvas.getContext("2d");
       const W = canvas.width, H = canvas.height;
+      const cam = parseCameraPerspective(analysisData.camera_perspective);
       const positions = resolvePositions(analysisData.steps, W, H);
 
-      // 배경
       ctx.drawImage(img, 0, 0);
       ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
       ctx.fillRect(0, 0, W, H);
@@ -34,7 +34,7 @@ export function drawMarkers(canvas, analysisData, imageSrc) {
 
       // 각 스텝에 3D 집게 그리기
       positions.forEach((pos, i) => {
-        draw3DClaw(ctx, pos.x, pos.y, analysisData.steps[i], W, H, false);
+        draw3DClaw(ctx, pos.x, pos.y, analysisData.steps[i], W, H, cam, false);
       });
 
       resolve(canvas.toDataURL("image/png"));
@@ -54,24 +54,24 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
       canvas.width = W;
       canvas.height = H;
       const ctx = canvas.getContext("2d");
+      const cam = parseCameraPerspective(analysisData.camera_perspective);
       const positions = resolvePositions(analysisData.steps, W, H);
       const results = [];
 
       for (let cur = 0; cur < analysisData.steps.length; cur++) {
-        // 배경
         ctx.drawImage(img, 0, 0);
         ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
         ctx.fillRect(0, 0, W, H);
 
-        // 다른 스텝 — 작고 흐리게
+        // 다른 스텝 — 흐리게
         for (let j = 0; j < analysisData.steps.length; j++) {
           if (j !== cur) {
-            draw3DClaw(ctx, positions[j].x, positions[j].y, analysisData.steps[j], W, H, false, 0.2);
+            draw3DClaw(ctx, positions[j].x, positions[j].y, analysisData.steps[j], W, H, cam, false, 0.2);
           }
         }
 
         // 현재 스텝 — 크고 밝게
-        draw3DClaw(ctx, positions[cur].x, positions[cur].y, analysisData.steps[cur], W, H, true);
+        draw3DClaw(ctx, positions[cur].x, positions[cur].y, analysisData.steps[cur], W, H, cam, true);
 
         // 확대 크롭
         const cropDim = Math.round(Math.min(W, H) * 0.55);
@@ -98,7 +98,6 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
         const actionFont = Math.max(13, 16 * zs);
         const whereFont = Math.max(11, 13 * zs);
 
-        // Step 라벨 + action
         zCtx.font = `bold ${actionFont}px sans-serif`;
         zCtx.fillStyle = '#FF3C50';
         zCtx.textAlign = 'left';
@@ -109,7 +108,6 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
         zCtx.fillStyle = '#FFF';
         zCtx.fillText(`  ${step.action || ''}`, 10 + labelW, barY + 8);
 
-        // where 텍스트
         if (step.where) {
           zCtx.font = `${whereFont}px sans-serif`;
           zCtx.fillStyle = '#81C784';
@@ -125,9 +123,19 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
   });
 }
 
-// ===== 핵심: 3D 집게 렌더링 =====
-// 집게를 내릴 위치(x, y)에 입체적인 3D 클로를 그린다
-function draw3DClaw(ctx, x, y, step, W, H, isActive, overrideAlpha) {
+// ===== 카메라 시점 파싱 =====
+function parseCameraPerspective(cam) {
+  const h = cam?.horizontal_deg ?? 0;
+  const v = cam?.vertical_deg ?? 45;
+  // 값 범위 클램프
+  return {
+    h: Math.max(-80, Math.min(80, h)),
+    v: Math.max(10, Math.min(80, v)),
+  };
+}
+
+// ===== 핵심: 3D 집게 렌더링 (카메라 시점 반영) =====
+function draw3DClaw(ctx, x, y, step, W, H, cam, isActive, overrideAlpha) {
   const s = getScale(W, H);
   const alpha = overrideAlpha ?? (isActive ? 1.0 : 0.7);
   const size = isActive ? 1.3 : 0.75;
@@ -136,27 +144,40 @@ function draw3DClaw(ctx, x, y, step, W, H, isActive, overrideAlpha) {
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // ===== 3D 집게 형태 =====
-  // 아래에서 보는 시점 — 집게가 내려오는 느낌
+  // ===== 카메라 시점 기반 변환 행렬 =====
+  // cam.h: 수평 각도 (양수=오른쪽에서, 음수=왼쪽에서)
+  // cam.v: 수직 각도 (높을수록 위에서 내려다봄)
+  const hRad = (cam.h * Math.PI) / 180;
+  const vRad = (cam.v * Math.PI) / 180;
 
-  // 그림자 (지면 원)
-  const shadowRx = u * 1.1;
+  // 수직 압축 — 위에서 볼수록 집게가 Y방향으로 납작해짐
+  const scaleY = Math.cos(vRad) * 0.6 + 0.4; // 0.4~1.0 범위
+  // 수평 기울기 — 옆에서 보면 집게가 기울어짐
+  const skewX = Math.sin(hRad) * 0.5;         // -0.5~+0.5
+  // 위에서 볼수록 팔이 더 벌어져 보임
+  const armOpenFactor = 1.0 + Math.sin(vRad) * 0.5; // 1.0~1.5
+
+  // 변환 적용 (중심점 기준)
+  ctx.translate(x, y);
+  ctx.transform(1, 0, skewX, scaleY, 0, 0);
+  ctx.translate(-x, -y);
+
+  // === 그림자 (타겟 위치) ===
+  const shadowRx = u * 1.1 * armOpenFactor;
   const shadowRy = u * 0.35;
   ctx.fillStyle = isActive ? 'rgba(255, 60, 80, 0.25)' : 'rgba(0, 0, 0, 0.2)';
   ctx.beginPath();
   ctx.ellipse(x, y + u * 0.3, shadowRx, shadowRy, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 타겟 링 (집게 내릴 정확한 위치)
+  // 타겟 십자선 (활성 스텝만)
   if (isActive) {
-    // 펄스 링
     ctx.strokeStyle = 'rgba(255, 60, 80, 0.5)';
     ctx.lineWidth = 2 * s;
     ctx.beginPath();
     ctx.ellipse(x, y + u * 0.3, shadowRx * 1.3, shadowRy * 1.3, 0, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 십자선
     const crossLen = u * 0.4;
     ctx.strokeStyle = 'rgba(255, 60, 80, 0.6)';
     ctx.lineWidth = 1.5 * s;
@@ -174,38 +195,33 @@ function draw3DClaw(ctx, x, y, step, W, H, isActive, overrideAlpha) {
   const mainColor = isActive ? '#FF3C50' : 'rgba(255, 200, 60, 0.85)';
   const metalColor = isActive ? '#E8E8E8' : '#CCCCCC';
   const darkMetal = isActive ? '#999999' : '#888888';
-  const lineW = Math.max(2, (isActive ? 3 : 2) * s);
 
-  // ---- 수직 샤프트 (위에서 내려오는 봉) ----
+  // ---- 수직 샤프트 ----
   const shaftTop = y - u * 2.8;
   const shaftBot = y - u * 0.8;
-
-  // 샤프트 3D 효과 (두께감)
   const shaftW = u * 0.15;
+
   ctx.fillStyle = metalColor;
   ctx.fillRect(x - shaftW, shaftTop, shaftW * 2, shaftBot - shaftTop);
-  // 하이라이트
   ctx.fillStyle = 'rgba(255,255,255,0.3)';
   ctx.fillRect(x - shaftW * 0.3, shaftTop, shaftW * 0.6, shaftBot - shaftTop);
-  // 외곽
   ctx.strokeStyle = darkMetal;
   ctx.lineWidth = 1 * s;
   ctx.strokeRect(x - shaftW, shaftTop, shaftW * 2, shaftBot - shaftTop);
 
-  // ---- 본체 (수평 바 — 3D 박스) ----
+  // ---- 본체 바 (3D 박스) ----
   const bodyW = u * 0.7;
   const bodyH = u * 0.25;
-  const bodyD = u * 0.15; // 깊이
+  const bodyD = u * 0.15;
   const bodyY = shaftBot;
 
-  // 정면
   ctx.fillStyle = metalColor;
   ctx.fillRect(x - bodyW, bodyY, bodyW * 2, bodyH);
   ctx.strokeStyle = darkMetal;
   ctx.lineWidth = 1 * s;
   ctx.strokeRect(x - bodyW, bodyY, bodyW * 2, bodyH);
 
-  // 윗면 (3D 깊이)
+  // 윗면
   ctx.fillStyle = '#D8D8D8';
   ctx.beginPath();
   ctx.moveTo(x - bodyW, bodyY);
@@ -227,18 +243,18 @@ function draw3DClaw(ctx, x, y, step, W, H, isActive, overrideAlpha) {
   ctx.fill();
   ctx.stroke();
 
-  // ---- 왼쪽 팔 (3D) ----
+  // ---- 팔 (armOpenFactor로 벌림 조절) ----
   const armBot = y + u * 0.2;
-  const armSpread = u * 0.85;
+  const armSpread = u * 0.85 * armOpenFactor;
   const tipIn = u * 0.3;
   const armW = u * 0.08;
 
+  // 왼쪽 팔
   drawArm3D(ctx, x - bodyW * 0.7, bodyY + bodyH, x - armSpread, armBot, tipIn, armW, s, metalColor, darkMetal);
-
-  // ---- 오른쪽 팔 (3D) ----
+  // 오른쪽 팔
   drawArm3D(ctx, x + bodyW * 0.7, bodyY + bodyH, x + armSpread, armBot, -tipIn, armW, s, metalColor, darkMetal);
 
-  // ---- 접촉하는 팔 강조 ----
+  // ---- 접촉 팔 강조 ----
   if (isActive && step.direction && step.direction !== 'center') {
     ctx.lineWidth = Math.max(3, 4.5 * s);
     ctx.strokeStyle = '#FFD700';
@@ -246,37 +262,42 @@ function draw3DClaw(ctx, x, y, step, W, H, isActive, overrideAlpha) {
     ctx.shadowBlur = 6 * s;
 
     if (step.direction === 'right' || step.direction === 'forward') {
-      // 왼쪽 팔 강조 (오른쪽으로 밀 때)
       drawArmLine(ctx, x - bodyW * 0.7, bodyY + bodyH, x - armSpread, armBot, tipIn);
     }
     if (step.direction === 'left' || step.direction === 'back') {
-      // 오른쪽 팔 강조
       drawArmLine(ctx, x + bodyW * 0.7, bodyY + bodyH, x + armSpread, armBot, -tipIn);
     }
     ctx.shadowBlur = 0;
   }
 
-  // ---- 스텝 번호 뱃지 (샤프트 위) ----
-  const badgeR = Math.max(10, (isActive ? 16 : 11) * s);
-  const badgeY = shaftTop - badgeR - 3 * s;
+  // ---- 스텝 번호 뱃지 ----
+  // 뱃지는 변환 밖에서 그려야 읽기 쉬움 → 변환 해제 후 다시 그림
+  ctx.restore(); // 변환 해제
 
-  // 뱃지 배경
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const badgeR = Math.max(10, (isActive ? 16 : 11) * s);
+  // 뱃지 위치: 변환된 샤프트 상단 계산
+  const transformedShaftTopY = y + (shaftTop - y) * scaleY + (shaftTop - y) * 0; // 대략적 위치
+  const badgeRealY = y + (shaftTop - y) * scaleY - badgeR - 3 * s;
+  const badgeRealX = x + (shaftTop - y) * skewX * scaleY;
+
   ctx.beginPath();
-  ctx.arc(x, badgeY, badgeR, 0, Math.PI * 2);
+  ctx.arc(badgeRealX, badgeRealY, badgeR, 0, Math.PI * 2);
   ctx.fillStyle = isActive ? '#FF3C50' : 'rgba(0, 0, 0, 0.75)';
   ctx.fill();
   ctx.strokeStyle = '#FFF';
   ctx.lineWidth = (isActive ? 2.5 : 1.5) * s;
   ctx.stroke();
 
-  // 번호
   ctx.fillStyle = '#FFF';
   ctx.font = `bold ${Math.max(9, (isActive ? 14 : 10) * s)}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${step.step}`, x, badgeY);
+  ctx.fillText(`${step.step}`, badgeRealX, badgeRealY);
 
-  // ---- 밀기 방향 표시 (작은 화살표 하나만) ----
+  // ---- 밀기 방향 화살표 (변환 밖에서 — 읽기 쉽게) ----
   if (isActive && step.direction && step.direction !== 'center') {
     const arrowLen = u * 1.2;
     let ax = 0, ay = 0;
@@ -290,7 +311,6 @@ function draw3DClaw(ctx, x, y, step, W, H, isActive, overrideAlpha) {
     const endX = x + ax;
     const endY = y + u * 0.3 + ay;
 
-    // 화살표 본체
     ctx.strokeStyle = mainColor;
     ctx.lineWidth = Math.max(3, 4 * s);
     ctx.lineCap = 'round';
@@ -299,7 +319,6 @@ function draw3DClaw(ctx, x, y, step, W, H, isActive, overrideAlpha) {
     ctx.lineTo(endX, endY);
     ctx.stroke();
 
-    // 화살촉
     const angle = Math.atan2(endY - startY, endX - startX);
     const headSize = 10 * s;
     ctx.fillStyle = mainColor;
@@ -314,16 +333,14 @@ function draw3DClaw(ctx, x, y, step, W, H, isActive, overrideAlpha) {
   ctx.restore();
 }
 
-// ===== 3D 팔 그리기 (두께 있는 팔) =====
+// ===== 3D 팔 그리기 =====
 function drawArm3D(ctx, topX, topY, botX, botY, tipOffsetX, armW, s, metalColor, darkMetal) {
-  // 팔의 방향 벡터
   const dx = botX - topX;
   const dy = botY - topY;
   const len = Math.sqrt(dx * dx + dy * dy);
-  const nx = -dy / len * armW; // 법선 (수직 방향)
+  const nx = -dy / len * armW;
   const ny = dx / len * armW;
 
-  // 팔 면 (사다리꼴)
   ctx.fillStyle = metalColor;
   ctx.beginPath();
   ctx.moveTo(topX - nx, topY - ny);
@@ -336,7 +353,6 @@ function drawArm3D(ctx, topX, topY, botX, botY, tipOffsetX, armW, s, metalColor,
   ctx.lineWidth = 1 * s;
   ctx.stroke();
 
-  // 하이라이트
   ctx.fillStyle = 'rgba(255,255,255,0.2)';
   ctx.beginPath();
   ctx.moveTo(topX - nx * 0.3, topY - ny * 0.3);
@@ -346,7 +362,6 @@ function drawArm3D(ctx, topX, topY, botX, botY, tipOffsetX, armW, s, metalColor,
   ctx.closePath();
   ctx.fill();
 
-  // 팁 (안쪽으로 굽은 부분)
   const tipX = botX + tipOffsetX;
   const tipY = botY + armW * 0.5;
   ctx.fillStyle = metalColor;
@@ -360,7 +375,7 @@ function drawArm3D(ctx, topX, topY, botX, botY, tipOffsetX, armW, s, metalColor,
   ctx.stroke();
 }
 
-// ===== 팔 라인만 (강조용) =====
+// ===== 팔 라인 (강조용) =====
 function drawArmLine(ctx, topX, topY, botX, botY, tipOffsetX) {
   ctx.beginPath();
   ctx.moveTo(topX, topY);

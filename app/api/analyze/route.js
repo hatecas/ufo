@@ -76,9 +76,21 @@ const ANALYSIS_PROMPT = (machineType, prizeType) => `
 - 下半身が重い形 → 重心が下部（押し中心攻略）
 - フィギュア箱 → 内容物の偏りで重心推定
 
+【カメラ視点の推定 — マーカー描画に必要】
+写真の撮影角度を推定してください。これはマーカーオーバーレイの描画角度を写真の遠近感に合わせるために使用します。
+- camera_horizontal_deg: カメラの水平角度。正面=0、右側から撮影=正の値、左側から撮影=負の値。範囲: -80〜+80
+- camera_vertical_deg: カメラの垂直角度。目線の高さ=0、真上から=90。範囲: 10〜80
+- 例: 右斜め上から見下ろした写真 → horizontal=30, vertical=50
+- 例: 正面やや上から → horizontal=0, vertical=30
+- 例: 左側から覗き込んだ写真 → horizontal=-40, vertical=40
+
 以下のJSON形式で回答してください。必ず有効なJSONのみを返してください：
 
 {
+  "camera_perspective": {
+    "horizontal_deg": 0,
+    "vertical_deg": 45
+  },
   "situation_analysis": {
     "machine_type": "사진에서 확인 가능한 기계 정보만 기술. 보이지 않으면 '확인 불가'",
     "claw_type": "two_arm / three_arm / pincer / unknown 중 택1",
