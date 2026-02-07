@@ -140,37 +140,34 @@ export default function Home() {
       <canvas ref={canvasRef} style={{ display: 'none' }} />
       <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} style={{ display: 'none' }} />
 
-      <div className="container">
+      {/* ===== SIDEBAR (Desktop: 항상 표시 / Mobile: 슬라이드인) ===== */}
+      <aside className={`sidebar-nav ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-nav-header">
+          <h2 className="sidebar-nav-title">📖 공략법</h2>
+          <button onClick={() => setSidebarOpen(false)} className="sidebar-close-btn">✕</button>
+        </div>
+        <div className="sidebar-nav-list">
+          {Object.values(TECHNIQUE_GUIDES).map((guide) => (
+            <button key={guide.id} onClick={() => openGuide(guide.id)}
+              className={`sidebar-nav-item ${currentGuide === guide.id ? 'active' : ''}`}>
+              <span className="sidebar-nav-icon">{guide.icon}</span>
+              <div className="sidebar-nav-info">
+                <div className="sidebar-nav-name">{guide.kr}</div>
+                <div className="sidebar-nav-jp">{guide.jp}</div>
+              </div>
+              <div className="sidebar-nav-diff">{'⭐'.repeat(guide.difficulty)}</div>
+            </button>
+          ))}
+        </div>
+        <div className="sidebar-nav-footer">
+          총 {Object.keys(TECHNIQUE_GUIDES).length}개 공략법
+        </div>
+      </aside>
 
-        {/* ===== SIDEBAR OVERLAY ===== */}
-        {sidebarOpen && (
-          <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}>
-            <div className="sidebar" onClick={(e) => e.stopPropagation()}>
-              <div className="sidebar-header">
-                <h2 className="sidebar-title">📖 공략법 가이드</h2>
-                <button onClick={() => setSidebarOpen(false)} className="sidebar-close">✕</button>
-              </div>
-              <div className="sidebar-list">
-                {Object.values(TECHNIQUE_GUIDES).map((guide) => (
-                  <button key={guide.id} onClick={() => openGuide(guide.id)} className="sidebar-item">
-                    <span className="sidebar-item-icon">{guide.icon}</span>
-                    <div className="sidebar-item-info">
-                      <div className="sidebar-item-name">{guide.kr}</div>
-                      <div className="sidebar-item-jp">{guide.jp}</div>
-                    </div>
-                    <div className="sidebar-item-meta">
-                      <span className="sidebar-item-diff">{'⭐'.repeat(guide.difficulty)}</span>
-                      <span className="sidebar-item-tries">{guide.tries}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <div className="sidebar-footer">
-                총 {Object.keys(TECHNIQUE_GUIDES).length}개 공략법
-              </div>
-            </div>
-          </div>
-        )}
+      {/* 모바일 오버레이 배경 */}
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
+
+      <div className="container">
 
         {/* ===== HEADER ===== */}
         <header className="header">
