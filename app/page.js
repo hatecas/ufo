@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { TECHNIQUES, PRIZE_TYPES, MACHINE_TYPES, SETUP_TYPES, CLAW_TYPES, CORE_PRINCIPLES, MACHINE_GUIDE, STAFF_CHANCE_TIPS } from './data';
-import { drawMarkers } from './markers';
+import { drawMarkers, drawStepImages } from './markers';
 
 export default function Home() {
   const [screen, setScreen] = useState('home');
@@ -16,6 +16,7 @@ export default function Home() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingText, setLoadingText] = useState('');
   const [markedImage, setMarkedImage] = useState(null);
+  const [stepImages, setStepImages] = useState([]);
   const [activeTab, setActiveTab] = useState('strategy');
   const [showGuide, setShowGuide] = useState(false);
 
@@ -88,6 +89,8 @@ export default function Home() {
       setTimeout(async () => {
         const marked = await drawMarkers(canvasRef.current, data.analysis, image);
         setMarkedImage(marked);
+        const perStep = await drawStepImages(canvasRef.current, data.analysis, image);
+        setStepImages(perStep);
         setScreen('result');
       }, 500);
     } catch (err) {
@@ -106,6 +109,7 @@ export default function Home() {
     setPrizeType('');
     setAnalysis(null);
     setMarkedImage(null);
+    setStepImages([]);
     setError(null);
     setActiveTab('strategy');
   };
@@ -338,9 +342,19 @@ export default function Home() {
 
                 {/* 공략 스텝 */}
                 <div className="steps-section">
-                  <h3 className="section-title">🎮 공략 스텝</h3>
+                  <h3 className="section-title">🎮 공략 스텝 — 여기에 집게를 내려라!</h3>
                   {analysis.steps?.map((step, i) => (
                     <div key={i} className="step-card">
+                      {/* 스텝별 마킹 이미지 */}
+                      {stepImages[i] && (
+                        <div className="step-image-wrap">
+                          <img src={stepImages[i]} alt={`Step ${step.step}`} className="step-image" />
+                          <div className="step-image-badge">
+                            <span className="step-image-num">{step.step}</span>
+                            <span className="step-image-label">{step.marker_label || `Step ${step.step}`}</span>
+                          </div>
+                        </div>
+                      )}
                       <div className="step-header">
                         <div className="step-number">{step.step}</div>
                         <div className="step-content">
