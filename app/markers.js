@@ -1,4 +1,4 @@
-// 전체 마커 오버뷰 이미지 (기존)
+// 전체 마커 오버뷰 이미지 (집게 오버레이)
 export function drawMarkers(canvas, analysisData, imageSrc) {
   return new Promise((resolve) => {
     if (!canvas || !analysisData?.steps) { resolve(null); return; }
@@ -10,13 +10,12 @@ export function drawMarkers(canvas, analysisData, imageSrc) {
       const W = canvas.width, H = canvas.height;
       const positions = resolvePositions(analysisData.steps, W, H);
       drawBaseImage(ctx, img, W, H);
-      drawDropZone(ctx, analysisData.drop_zone, W, H);
       drawConnectors(ctx, positions, W, H);
       positions.forEach((pos, i) => {
         drawArrow(ctx, pos, analysisData.steps[i], W, H, 1.0);
       });
       positions.forEach((pos, i) => {
-        drawMarker(ctx, pos, analysisData.steps[i], W, H, 1.0);
+        drawClawOverlay(ctx, pos, analysisData.steps[i], W, H, 0.85, false);
       });
       resolve(canvas.toDataURL("image/png"));
     };
@@ -25,7 +24,7 @@ export function drawMarkers(canvas, analysisData, imageSrc) {
   });
 }
 
-// 스텝별 개별 이미지 생성 — 현재 스텝만 강조, 나머지 흐리게
+// 스텝별 개별 이미지 생성 — 현재 스텝은 집게 강조, 나머지 흐리게
 export function drawStepImages(canvas, analysisData, imageSrc) {
   return new Promise((resolve) => {
     if (!canvas || !analysisData?.steps) { resolve([]); return; }
@@ -41,13 +40,9 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
       for (let current = 0; current < analysisData.steps.length; current++) {
         drawBaseImage(ctx, img, W, H);
 
-        // 낙하 목표 구간 표시
-        drawDropZone(ctx, analysisData.drop_zone, W, H);
-
         // 이전 스텝들 — 흐리게 (완료된 스텝)
         for (let j = 0; j < current; j++) {
-          drawArrow(ctx, positions[j], analysisData.steps[j], W, H, 0.2);
-          drawMarker(ctx, positions[j], analysisData.steps[j], W, H, 0.25);
+          drawClawOverlay(ctx, positions[j], analysisData.steps[j], W, H, 0.2, false);
         }
 
         // 이전 → 현재 연결선
@@ -55,14 +50,13 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
           drawSingleConnector(ctx, positions[current - 1], positions[current], W, H, 0.6);
         }
 
-        // 현재 스텝 — 크고 밝게 강조
-        drawTargetZone(ctx, positions[current], W, H);
+        // 현재 스텝 — 크고 밝게 강조 (집게 + 화살표)
         drawArrow(ctx, positions[current], analysisData.steps[current], W, H, 1.0);
-        drawMarker(ctx, positions[current], analysisData.steps[current], W, H, 1.0, true);
+        drawClawOverlay(ctx, positions[current], analysisData.steps[current], W, H, 1.0, true);
 
         // 다음 스텝들 — 아주 흐리게 (예정)
         for (let j = current + 1; j < analysisData.steps.length; j++) {
-          drawMarker(ctx, positions[j], analysisData.steps[j], W, H, 0.12);
+          drawClawOverlay(ctx, positions[j], analysisData.steps[j], W, H, 0.12, false);
         }
 
         results.push(canvas.toDataURL("image/jpeg", 0.85));
@@ -81,12 +75,11 @@ function getScale(W, H) { return Math.min(W, H) / 500; }
 
 function resolvePositions(steps, W, H) {
   const scale = getScale(W, H);
-  const markerR = Math.max(14, 20 * scale);
+  const minDist = Math.max(30, 40 * scale);
   const positions = steps.map((step) => ({
     x: (step.marker_x_percent / 100) * W,
     y: (step.marker_y_percent / 100) * H,
   }));
-  const minDist = markerR * 3.5;
   for (let i = 1; i < positions.length; i++) {
     for (let j = 0; j < i; j++) {
       const dx = positions[i].x - positions[j].x;
@@ -97,85 +90,12 @@ function resolvePositions(steps, W, H) {
         const push = (minDist - dist) / 2 + 5;
         positions[i].x += Math.cos(angle) * push;
         positions[i].y += Math.sin(angle) * push;
-        positions[i].x = Math.max(markerR + 10, Math.min(W - markerR - 10, positions[i].x));
-        positions[i].y = Math.max(markerR + 10, Math.min(H - markerR - 10, positions[i].y));
+        positions[i].x = Math.max(20, Math.min(W - 20, positions[i].x));
+        positions[i].y = Math.max(20, Math.min(H - 20, positions[i].y));
       }
     }
   }
   return positions;
-}
-
-// 낙하 목표 구간 — 초록 점선 사각형 + "낙하 목표" 라벨
-function drawDropZone(ctx, dropZone, W, H) {
-  if (!dropZone || !dropZone.x1_percent || !dropZone.y1_percent) return;
-  const scale = getScale(W, H);
-
-  const x1 = (parseFloat(dropZone.x1_percent) / 100) * W;
-  const y1 = (parseFloat(dropZone.y1_percent) / 100) * H;
-  const x2 = (parseFloat(dropZone.x2_percent) / 100) * W;
-  const y2 = (parseFloat(dropZone.y2_percent) / 100) * H;
-  const zw = x2 - x1;
-  const zh = y2 - y1;
-
-  // 초록 반투명 채우기
-  ctx.save();
-  ctx.fillStyle = "rgba(0, 255, 157, 0.08)";
-  ctx.fillRect(x1, y1, zw, zh);
-
-  // 초록 점선 테두리
-  ctx.strokeStyle = "#00FF9D";
-  ctx.lineWidth = Math.max(2, 3 * scale);
-  ctx.setLineDash([8 * scale, 5 * scale]);
-  ctx.strokeRect(x1, y1, zw, zh);
-  ctx.setLineDash([]);
-
-  // 모서리 꼭짓점 강조
-  const cornerSize = Math.max(6, 10 * scale);
-  ctx.lineWidth = Math.max(2.5, 3.5 * scale);
-  ctx.strokeStyle = "#00FF9D";
-  ctx.setLineDash([]);
-  // 좌상
-  ctx.beginPath(); ctx.moveTo(x1, y1 + cornerSize); ctx.lineTo(x1, y1); ctx.lineTo(x1 + cornerSize, y1); ctx.stroke();
-  // 우상
-  ctx.beginPath(); ctx.moveTo(x2 - cornerSize, y1); ctx.lineTo(x2, y1); ctx.lineTo(x2, y1 + cornerSize); ctx.stroke();
-  // 좌하
-  ctx.beginPath(); ctx.moveTo(x1, y2 - cornerSize); ctx.lineTo(x1, y2); ctx.lineTo(x1 + cornerSize, y2); ctx.stroke();
-  // 우하
-  ctx.beginPath(); ctx.moveTo(x2 - cornerSize, y2); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2 - cornerSize); ctx.stroke();
-
-  // "⬇ 낙하 목표" 라벨
-  const labelFontSize = Math.max(11, 14 * scale);
-  ctx.font = `bold ${labelFontSize}px sans-serif`;
-  const labelText = "⬇ 낙하 목표";
-  const lw = ctx.measureText(labelText).width + 16 * scale;
-  const lh = (labelFontSize + 8) * scale / scale * 1;
-  const lx = x1 + zw / 2 - lw / 2;
-  const ly = y1 - lh - 6 * scale;
-
-  // 라벨이 이미지 위로 벗어나면 아래에 표시
-  const finalLy = ly < 4 ? y2 + 6 * scale : ly;
-
-  ctx.fillStyle = "rgba(0, 255, 157, 0.9)";
-  const r = 4 * scale;
-  ctx.beginPath();
-  ctx.moveTo(lx + r, finalLy);
-  ctx.lineTo(lx + lw - r, finalLy);
-  ctx.quadraticCurveTo(lx + lw, finalLy, lx + lw, finalLy + r);
-  ctx.lineTo(lx + lw, finalLy + lh - r);
-  ctx.quadraticCurveTo(lx + lw, finalLy + lh, lx + lw - r, finalLy + lh);
-  ctx.lineTo(lx + r, finalLy + lh);
-  ctx.quadraticCurveTo(lx, finalLy + lh, lx, finalLy + lh - r);
-  ctx.lineTo(lx, finalLy + r);
-  ctx.quadraticCurveTo(lx, finalLy, lx + r, finalLy);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "#000";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(labelText, lx + lw / 2, finalLy + lh / 2);
-
-  ctx.restore();
 }
 
 function drawBaseImage(ctx, img, W, H) {
@@ -208,47 +128,150 @@ function drawSingleConnector(ctx, from, to, W, H, opacity) {
   ctx.restore();
 }
 
-// 현재 스텝 타겟 존 — 십자선 + 펄스 원
-function drawTargetZone(ctx, pos, W, H) {
+// ===== 집게(크로우) 점선 오버레이 — 핵심 시각화 =====
+// (x, y) = 집게를 내려야 할 지점 (집게 중심)
+// 집게 모양: 샤프트 → 본체 바 → 양쪽 팔(벌어진 상태) → 팁(안쪽으로 굽음)
+function drawClawOverlay(ctx, pos, step, W, H, opacity, isCurrentStep) {
   const scale = getScale(W, H);
   const { x, y } = pos;
-  const zoneR = Math.max(30, 45 * scale);
 
-  // 큰 펄스 원 (타겟 존)
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, zoneR * 1.8);
-  glow.addColorStop(0, "rgba(255, 60, 80, 0.25)");
-  glow.addColorStop(0.5, "rgba(255, 60, 80, 0.08)");
-  glow.addColorStop(1, "rgba(255, 60, 80, 0)");
-  ctx.beginPath();
-  ctx.arc(x, y, zoneR * 1.8, 0, Math.PI * 2);
-  ctx.fillStyle = glow;
-  ctx.fill();
+  // 크기 — 현재 스텝이면 더 크게
+  const mul = isCurrentStep ? 1.3 : 0.85;
+  const u = Math.max(16, 24 * scale) * mul;
 
-  // 십자선
-  const crossLen = zoneR * 1.2;
   ctx.save();
-  ctx.strokeStyle = "rgba(255, 60, 80, 0.4)";
-  ctx.lineWidth = 1.5 * scale;
-  ctx.setLineDash([4 * scale, 3 * scale]);
-  // 가로
-  ctx.beginPath();
-  ctx.moveTo(x - crossLen, y);
-  ctx.lineTo(x + crossLen, y);
-  ctx.stroke();
-  // 세로
-  ctx.beginPath();
-  ctx.moveTo(x, y - crossLen);
-  ctx.lineTo(x, y + crossLen);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.restore();
+  ctx.globalAlpha = opacity;
 
-  // 타겟 원
+  const clawColor = isCurrentStep ? '#FF3C50' : 'rgba(255, 200, 60, 0.85)';
+  const lineW = Math.max(2, (isCurrentStep ? 3.5 : 2.5) * scale);
+  const dash = [5 * scale, 3 * scale];
+
+  // ====== 집게 형태 그리기 ======
+
+  // 기준점 계산
+  const shaftTop = y - u * 2.0;        // 샤프트 꼭대기
+  const bodyY = y - u * 0.4;           // 본체 바 Y위치
+  const bodyHalfW = u * 0.55;          // 본체 바 반폭
+  const armBottomY = y + u * 1.1;      // 팔 끝 Y위치
+  const armSpreadX = u * 0.85;         // 팔 벌림 폭
+  const tipInX = u * 0.25;             // 팁 안쪽 굽힘량
+  const tipDownY = u * 0.12;           // 팁 아래쪽 굽힘량
+
+  ctx.strokeStyle = clawColor;
+  ctx.lineWidth = lineW;
+  ctx.setLineDash(dash);
+
+  // 1) 샤프트 (수직선)
   ctx.beginPath();
-  ctx.arc(x, y, zoneR * 0.6, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(255, 60, 80, 0.35)";
-  ctx.lineWidth = 1.5 * scale;
+  ctx.moveTo(x, shaftTop);
+  ctx.lineTo(x, bodyY);
   ctx.stroke();
+
+  // 2) 본체 바 (가로선)
+  ctx.beginPath();
+  ctx.moveTo(x - bodyHalfW, bodyY);
+  ctx.lineTo(x + bodyHalfW, bodyY);
+  ctx.stroke();
+
+  // 3) 왼쪽 팔 — 벌어진 형태 + 안쪽 팁
+  ctx.beginPath();
+  ctx.moveTo(x - bodyHalfW, bodyY);
+  ctx.lineTo(x - armSpreadX, armBottomY);
+  ctx.lineTo(x - armSpreadX + tipInX, armBottomY + tipDownY);
+  ctx.stroke();
+
+  // 4) 오른쪽 팔
+  ctx.beginPath();
+  ctx.moveTo(x + bodyHalfW, bodyY);
+  ctx.lineTo(x + armSpreadX, armBottomY);
+  ctx.lineTo(x + armSpreadX - tipInX, armBottomY + tipDownY);
+  ctx.stroke();
+
+  ctx.setLineDash([]);
+
+  // 5) 현재 스텝 — 접촉하는 팔 강조 (실선 + 골드)
+  //    밀기 방향과 반대쪽 팔이 경품에 접촉함
+  //    right → 왼쪽 팔 접촉 / left → 오른쪽 팔 접촉
+  if (isCurrentStep && step.direction && step.direction !== 'center') {
+    ctx.lineWidth = Math.max(3, 5 * scale);
+    ctx.strokeStyle = '#FFD700';
+    ctx.setLineDash([]);
+    ctx.shadowColor = '#FFD700';
+    ctx.shadowBlur = 4 * scale;
+
+    if (step.direction === 'right' || step.direction === 'forward') {
+      // 오른쪽으로 밀 때 → 왼쪽 팔이 접촉
+      ctx.beginPath();
+      ctx.moveTo(x - bodyHalfW, bodyY);
+      ctx.lineTo(x - armSpreadX, armBottomY);
+      ctx.lineTo(x - armSpreadX + tipInX, armBottomY + tipDownY);
+      ctx.stroke();
+    }
+    if (step.direction === 'left' || step.direction === 'back') {
+      // 왼쪽으로 밀 때 → 오른쪽 팔이 접촉
+      ctx.beginPath();
+      ctx.moveTo(x + bodyHalfW, bodyY);
+      ctx.lineTo(x + armSpreadX, armBottomY);
+      ctx.lineTo(x + armSpreadX - tipInX, armBottomY + tipDownY);
+      ctx.stroke();
+    }
+
+    ctx.shadowBlur = 0;
+  }
+
+  // 6) 스텝 번호 뱃지 (샤프트 위)
+  const numR = Math.max(9, (isCurrentStep ? 14 : 10) * scale);
+  const badgeY = shaftTop - numR - 2 * scale;
+
+  ctx.beginPath();
+  ctx.arc(x, badgeY, numR, 0, Math.PI * 2);
+  ctx.fillStyle = isCurrentStep ? '#FF3C50' : 'rgba(0, 0, 0, 0.75)';
+  ctx.fill();
+  ctx.strokeStyle = '#FFF';
+  ctx.lineWidth = (isCurrentStep ? 2.5 : 1.5) * scale;
+  ctx.stroke();
+
+  ctx.fillStyle = '#FFF';
+  ctx.font = `bold ${Math.max(8, (isCurrentStep ? 12 : 9) * scale)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${step.step}`, x, badgeY);
+
+  // 7) 라벨 (현재 스텝만 표시)
+  if (isCurrentStep) {
+    const label = step.marker_label || `Step ${step.step}`;
+    const fontSize = Math.max(10, 12 * scale);
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    const tw = ctx.measureText(label).width + 12 * scale;
+    const th = fontSize + 8 * scale;
+    const tx = x - tw / 2;
+    const ty = armBottomY + tipDownY + 8 * scale;
+
+    // 라벨이 이미지 밖으로 나가면 위에 표시
+    const finalTy = (ty + th > H - 5) ? (shaftTop - numR * 2 - th - 6 * scale) : ty;
+
+    const r = 3 * scale;
+    ctx.fillStyle = 'rgba(255, 60, 80, 0.88)';
+    ctx.beginPath();
+    ctx.moveTo(tx + r, finalTy);
+    ctx.lineTo(tx + tw - r, finalTy);
+    ctx.quadraticCurveTo(tx + tw, finalTy, tx + tw, finalTy + r);
+    ctx.lineTo(tx + tw, finalTy + th - r);
+    ctx.quadraticCurveTo(tx + tw, finalTy + th, tx + tw - r, finalTy + th);
+    ctx.lineTo(tx + r, finalTy + th);
+    ctx.quadraticCurveTo(tx, finalTy + th, tx, finalTy + th - r);
+    ctx.lineTo(tx, finalTy + r);
+    ctx.quadraticCurveTo(tx, finalTy, tx + r, finalTy);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#FFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, finalTy + th / 2);
+  }
+
+  ctx.restore();
 }
 
 function drawArrow(ctx, pos, step, W, H, opacity) {
@@ -292,77 +315,4 @@ function drawArrow(ctx, pos, step, W, H, opacity) {
     ctx.fill();
     ctx.restore();
   }
-}
-
-function drawMarker(ctx, pos, step, W, H, opacity, isHighlighted) {
-  const scale = getScale(W, H);
-  const baseR = Math.max(10, 14 * scale);
-  const numR = isHighlighted ? baseR * 1.3 : baseR;
-  const markerR = numR * 1.5;
-  const fontSize = Math.max(10, (isHighlighted ? 16 : 13) * scale);
-  const labelFontSize = Math.max(9, (isHighlighted ? 13 : 11) * scale);
-  const { x, y } = pos;
-
-  ctx.save();
-  ctx.globalAlpha = opacity;
-
-  // 글로우
-  const glow = ctx.createRadialGradient(x, y, numR, x, y, markerR);
-  glow.addColorStop(0, "rgba(255, 60, 80, 0.6)");
-  glow.addColorStop(1, "rgba(255, 60, 80, 0)");
-  ctx.beginPath();
-  ctx.arc(x, y, markerR, 0, Math.PI * 2);
-  ctx.fillStyle = glow;
-  ctx.fill();
-
-  // 마커 원
-  ctx.beginPath();
-  ctx.arc(x, y, numR + 2, 0, Math.PI * 2);
-  ctx.fillStyle = isHighlighted ? "#FF3C50" : "#FF3C50";
-  ctx.fill();
-  ctx.strokeStyle = "#FFF";
-  ctx.lineWidth = (isHighlighted ? 3 : 2.5) * scale;
-  ctx.stroke();
-
-  // 번호
-  ctx.fillStyle = "#FFF";
-  ctx.font = `bold ${fontSize}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(`${step.step}`, x, y);
-
-  // 라벨
-  const label = step.marker_label || `Step ${step.step}`;
-  ctx.font = `bold ${labelFontSize}px sans-serif`;
-  const labelWidth = ctx.measureText(label).width + 14 * scale;
-  const labelHeight = (isHighlighted ? 22 : 18) * scale;
-
-  let labelY = y + numR + 10 * scale;
-  if (labelY + labelHeight > H - 10) {
-    labelY = y - numR - labelHeight - 6 * scale;
-  }
-
-  const labelX = x - labelWidth / 2;
-  const radius = 4 * scale;
-
-  ctx.fillStyle = isHighlighted ? "rgba(255, 60, 80, 0.9)" : "rgba(0, 0, 0, 0.8)";
-  ctx.beginPath();
-  ctx.moveTo(labelX + radius, labelY);
-  ctx.lineTo(labelX + labelWidth - radius, labelY);
-  ctx.quadraticCurveTo(labelX + labelWidth, labelY, labelX + labelWidth, labelY + radius);
-  ctx.lineTo(labelX + labelWidth, labelY + labelHeight - radius);
-  ctx.quadraticCurveTo(labelX + labelWidth, labelY + labelHeight, labelX + labelWidth - radius, labelY + labelHeight);
-  ctx.lineTo(labelX + radius, labelY + labelHeight);
-  ctx.quadraticCurveTo(labelX, labelY + labelHeight, labelX, labelY + labelHeight - radius);
-  ctx.lineTo(labelX, labelY + radius);
-  ctx.quadraticCurveTo(labelX, labelY, labelX + radius, labelY);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = "#FFF";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(label, x, labelY + labelHeight / 2);
-
-  ctx.restore();
 }
