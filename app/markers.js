@@ -59,7 +59,36 @@ export function drawStepImages(canvas, analysisData, imageSrc) {
           drawClawOverlay(ctx, positions[j], analysisData.steps[j], W, H, 0.12, false);
         }
 
-        results.push(canvas.toDataURL("image/jpeg", 0.85));
+        // === 확대 크롭 — 현재 스텝 위치 중심으로 줌 ===
+        const cropDim = Math.round(Math.min(W, H) * 0.55);
+        let cx = Math.round(positions[current].x - cropDim / 2);
+        let cy = Math.round(positions[current].y - cropDim / 2);
+        cx = Math.max(0, Math.min(W - cropDim, cx));
+        cy = Math.max(0, Math.min(H - cropDim, cy));
+
+        const zoomCanvas = document.createElement('canvas');
+        zoomCanvas.width = cropDim;
+        zoomCanvas.height = cropDim;
+        const zoomCtx = zoomCanvas.getContext('2d');
+        zoomCtx.drawImage(canvas, cx, cy, cropDim, cropDim, 0, 0, cropDim, cropDim);
+
+        // 확대 라벨
+        const zs = cropDim / 400;
+        const zFontSize = Math.max(11, 13 * zs);
+        zoomCtx.font = `bold ${zFontSize}px sans-serif`;
+        const zLabel = `🔍 Step ${analysisData.steps[current].step} 확대`;
+        const zLabelW = zoomCtx.measureText(zLabel).width + 14;
+        const zLabelH = zFontSize + 10;
+        zoomCtx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        zoomCtx.beginPath();
+        zoomCtx.roundRect(cropDim - zLabelW - 8, 6, zLabelW, zLabelH, 4);
+        zoomCtx.fill();
+        zoomCtx.fillStyle = '#FFF';
+        zoomCtx.textAlign = 'right';
+        zoomCtx.textBaseline = 'top';
+        zoomCtx.fillText(zLabel, cropDim - 14, 10);
+
+        results.push(zoomCanvas.toDataURL("image/jpeg", 0.9));
       }
 
       resolve(results);

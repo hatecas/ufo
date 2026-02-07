@@ -379,7 +379,34 @@ export default function Home() {
                               {step.direction === 'center' && '◎ 센터'}
                             </span>
                           </div>
-                          <div className="step-detail">{step.detail}</div>
+                          {/* 3줄 구조: 어디에 / 무슨 일이 / 결과 */}
+                          {step.where ? (
+                            <div className="step-3lines">
+                              <div className="step-line step-line-where">
+                                <span className="step-line-icon">📍</span>
+                                <div>
+                                  <div className="step-line-label">집게 위치</div>
+                                  <div className="step-line-text">{step.where}</div>
+                                </div>
+                              </div>
+                              <div className="step-line step-line-mechanism">
+                                <span className="step-line-icon">⚡</span>
+                                <div>
+                                  <div className="step-line-label">일어나는 일</div>
+                                  <div className="step-line-text">{step.mechanism}</div>
+                                </div>
+                              </div>
+                              <div className="step-line step-line-result">
+                                <span className="step-line-icon">📦</span>
+                                <div>
+                                  <div className="step-line-label">예상 결과</div>
+                                  <div className="step-line-text">{step.expected_result}</div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="step-detail">{step.detail}</div>
+                          )}
                         </div>
                       </div>
                       {i < (analysis.steps.length - 1) && <div className="step-connector" />}

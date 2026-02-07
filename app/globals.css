@@ -310,6 +310,22 @@ body {
 }
 .step-detail { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
 
+/* Step 3-Line Format */
+.step-3lines { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.step-line {
+  display: flex; gap: 8px; align-items: flex-start;
+  padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,0.03);
+}
+.step-line-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.step-line-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+.step-line-text { font-size: 13px; color: #eee; line-height: 1.5; font-weight: 500; }
+.step-line-where .step-line-label { color: #4FC3F7; }
+.step-line-where { border-left: 3px solid rgba(79,195,247,0.4); }
+.step-line-mechanism .step-line-label { color: #FFD54F; }
+.step-line-mechanism { border-left: 3px solid rgba(255,213,79,0.4); }
+.step-line-result .step-line-label { color: #81C784; }
+.step-line-result { border-left: 3px solid rgba(129,199,132,0.4); }
+
 /* Step Image — 스텝별 마킹 이미지 */
 .step-image-wrap {
   position: relative; border-radius: var(--radius); overflow: hidden;
