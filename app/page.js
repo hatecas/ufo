@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { TECHNIQUES, PRIZE_TYPES, MACHINE_TYPES, SETUP_TYPES, CLAW_TYPES, CORE_PRINCIPLES, MACHINE_GUIDE, STAFF_CHANCE_TIPS } from './data';
+import { TECHNIQUES, PRIZE_TYPES, MACHINE_TYPES, SETUP_TYPES, CLAW_TYPES, CORE_PRINCIPLES, MACHINE_GUIDE, STAFF_CHANCE_TIPS, TECHNIQUE_GUIDES } from './data';
 import { drawMarkers, drawStepImages } from './markers';
 
 export default function Home() {
@@ -19,6 +19,8 @@ export default function Home() {
   const [stepImages, setStepImages] = useState([]);
   const [activeTab, setActiveTab] = useState('strategy');
   const [showGuide, setShowGuide] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentGuide, setCurrentGuide] = useState(null);
 
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
@@ -114,6 +116,17 @@ export default function Home() {
     setActiveTab('strategy');
   };
 
+  const openGuide = (guideId) => {
+    setCurrentGuide(guideId);
+    setSidebarOpen(false);
+    setScreen('guide');
+  };
+
+  const closeGuide = () => {
+    setCurrentGuide(null);
+    setScreen('home');
+  };
+
   // ===== 세팅 유형 찾기 헬퍼 =====
   const getSetupInfo = (setupId) => SETUP_TYPES.find(s => s.id === setupId);
   const getClawInfo = (clawId) => CLAW_TYPES.find(c => c.id === clawId);
@@ -129,8 +142,43 @@ export default function Home() {
 
       <div className="container">
 
+        {/* ===== SIDEBAR OVERLAY ===== */}
+        {sidebarOpen && (
+          <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}>
+            <div className="sidebar" onClick={(e) => e.stopPropagation()}>
+              <div className="sidebar-header">
+                <h2 className="sidebar-title">📖 공략법 가이드</h2>
+                <button onClick={() => setSidebarOpen(false)} className="sidebar-close">✕</button>
+              </div>
+              <div className="sidebar-list">
+                {Object.values(TECHNIQUE_GUIDES).map((guide) => (
+                  <button key={guide.id} onClick={() => openGuide(guide.id)} className="sidebar-item">
+                    <span className="sidebar-item-icon">{guide.icon}</span>
+                    <div className="sidebar-item-info">
+                      <div className="sidebar-item-name">{guide.kr}</div>
+                      <div className="sidebar-item-jp">{guide.jp}</div>
+                    </div>
+                    <div className="sidebar-item-meta">
+                      <span className="sidebar-item-diff">{'⭐'.repeat(guide.difficulty)}</span>
+                      <span className="sidebar-item-tries">{guide.tries}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="sidebar-footer">
+                총 {Object.keys(TECHNIQUE_GUIDES).length}개 공략법
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ===== HEADER ===== */}
         <header className="header">
+          <button onClick={() => setSidebarOpen(true)} className="hamburger-btn" aria-label="메뉴">
+            <span className="hamburger-line" />
+            <span className="hamburger-line" />
+            <span className="hamburger-line" />
+          </button>
           <div className="header-icon">🕹️</div>
           <h1 className="header-title">UFO Catcher Master</h1>
           <p className="header-sub">AI 크레인게임 공략 시스템</p>
@@ -577,6 +625,116 @@ export default function Home() {
             <button onClick={resetAll} className="new-analysis-btn">🕹️ 새로운 분석 시작</button>
           </div>
         )}
+
+        {/* ===== GUIDE SCREEN ===== */}
+        {screen === 'guide' && currentGuide && (() => {
+          const guide = TECHNIQUE_GUIDES[currentGuide];
+          if (!guide) return null;
+          return (
+            <div className="animate-fade-in guide-screen">
+              {/* 뒤로가기 */}
+              <button onClick={closeGuide} className="guide-back-btn">← 메인으로</button>
+
+              {/* 가이드 헤더 */}
+              <div className="guide-hero">
+                <div className="guide-hero-icon">{guide.icon}</div>
+                <div className="guide-hero-info">
+                  <h2 className="guide-hero-title">{guide.kr}</h2>
+                  <div className="guide-hero-jp">{guide.jp}</div>
+                </div>
+              </div>
+
+              {/* 메타 정보 */}
+              <div className="guide-meta-grid">
+                <div className="guide-meta-card">
+                  <div className="guide-meta-label">난이도</div>
+                  <div className="guide-meta-value">{'⭐'.repeat(guide.difficulty)}{'☆'.repeat(5 - guide.difficulty)}</div>
+                </div>
+                <div className="guide-meta-card">
+                  <div className="guide-meta-label">예상 횟수</div>
+                  <div className="guide-meta-value">{guide.tries}</div>
+                </div>
+                <div className="guide-meta-card">
+                  <div className="guide-meta-label">예상 비용</div>
+                  <div className="guide-meta-value">{guide.cost}</div>
+                </div>
+              </div>
+
+              {/* 요약 */}
+              <div className="guide-section">
+                <div className="guide-summary">{guide.summary}</div>
+              </div>
+
+              {/* 언제 사용? */}
+              <div className="guide-section">
+                <h3 className="guide-section-title">🎯 이럴 때 사용하세요</h3>
+                <div className="guide-when-list">
+                  {guide.when.map((w, i) => (
+                    <div key={i} className="guide-when-item">
+                      <span className="guide-when-check">✓</span>
+                      <span>{w}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 원리 */}
+              <div className="guide-section">
+                <h3 className="guide-section-title">⚡ 원리</h3>
+                <div className="guide-principle">{guide.principle}</div>
+              </div>
+
+              {/* 단계별 공략 */}
+              <div className="guide-section">
+                <h3 className="guide-section-title">🎮 단계별 공략</h3>
+                <div className="guide-steps">
+                  {guide.steps.map((step, i) => (
+                    <div key={i} className="guide-step-card">
+                      <div className="guide-step-num">{i + 1}</div>
+                      <div className="guide-step-content">
+                        <div className="guide-step-title">{step.title}</div>
+                        <div className="guide-step-desc">{step.desc}</div>
+                        {step.diagram && (
+                          <pre className="guide-step-diagram">{step.diagram}</pre>
+                        )}
+                        {step.tip && (
+                          <div className="guide-step-tip">💡 {step.tip}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 흔한 실수 */}
+              <div className="guide-section">
+                <h3 className="guide-section-title">❌ 흔한 실수</h3>
+                <div className="guide-mistakes">
+                  {guide.mistakes.map((m, i) => (
+                    <div key={i} className="guide-mistake-item">{m}</div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 영상 보기 */}
+              {(() => {
+                const tech = TECHNIQUES[currentGuide];
+                if (!tech?.videoQuery) return null;
+                return (
+                  <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(tech.videoQuery)}`}
+                    target="_blank" rel="noopener noreferrer" className="guide-video-link">
+                    ▶ 이 테크닉 영상으로 보기 (YouTube)
+                  </a>
+                );
+              })()}
+
+              {/* AI 분석으로 */}
+              <button onClick={() => { setCurrentGuide(null); setScreen('home'); }} className="guide-cta-btn">
+                📸 AI 분석으로 실전 공략받기
+              </button>
+            </div>
+          );
+        })()}
 
         <footer className="footer">
           UFO Catcher Master v2.0 — AI-Powered Crane Game Strategy
