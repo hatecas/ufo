@@ -51,7 +51,19 @@ const ANALYSIS_PROMPT = (machineType, prizeType) => `
 4. アーム力が弱い場合は掴むのではなく押す・引く戦略を優先
 5. 景品が大きすぎてアームで掴めない場合は「ポジション変更を待つ」か「諦める」を推奨
 
+【クレーンの移動範囲 — 超重要：物理的に到達不可能な位置は絶対に指定しない】
+★ クレーンゲームのアームは「レール」に沿って前後左右に移動する。移動範囲は機体内部のレールの長さに制限される。
+★ 写真を見て、クレーンが実際に到達できるエリアを推定すること：
+  - レール（上部の金属棒/ガイド）が見える場合 → その範囲内のみ指定可能
+  - 景品が機体の端にある場合 → アームが届かない可能性を必ず考慮
+  - 景品の真上にアームが来れない場合 → 「到達困難」と明記し、別の戦略を提案
+★ marker_x_percent / marker_y_percent は必ず「景品の上または景品の直近」に配置すること
+  - 景品から大きく離れた位置（景品の端から画像全体の10%以上離れた位置）にマーカーを置かない
+  - すべてのステップのマーカーは景品のバウンディングボックス周辺に集中させる
+★ 各ステップの位置は「前のステップから物理的にアームが移動可能な範囲内」であること
+
 【物理パラメータ分析 — 写真から推定】
+- クレーンの移動可能範囲（レール位置から推定）
 - 棒間隔 vs 景品サイズの比率
 - 景品の傾き角度（水平基準）
 - 棒と景品の接触点の数
@@ -80,7 +92,8 @@ const ANALYSIS_PROMPT = (machineType, prizeType) => `
     "bar_gap_ratio": "봉 간격 대비 상품 크기 비율 (추정, 예: '약 0.8'). 봉이 없으면 null",
     "tilt_angle": "현재 기울기 각도 추정 (예: '약 15도'). 확인 불가시 null",
     "difficulty": "1-10 숫자",
-    "not_visible": ["사진에서 확인할 수 없는 요소 목록"]
+    "not_visible": ["사진에서 확인할 수 없는 요소 목록"],
+    "reachable_area": "크레인이 도달 가능한 범위 설명 (레일 위치 기반 추정). 도달 불가 영역이 있으면 명시"
   },
   "technique": {
     "primary": "추천 메인 테크닉의 일본어명 (橋渡し/縦ハメ/横ハメ/寄せ/ずらし/くるりんぱ/止め掛け/ちゃぶ台/スライド/前落とし 중 택1)",
@@ -114,9 +127,11 @@ const ANALYSIS_PROMPT = (machineType, prizeType) => `
 }
 
 【マーカー配置ルール - 非常に重要】
-- 各ステップのmarker_x_percentとmarker_y_percentは、実際に集計を降ろすべきポイントを示す
-- マーカー同士が重ならないよう、最低15%以上の間隔を空けること
-- もしポイントが近い場合は、marker_x_percentまたはmarker_y_percentをずらして視認性を確保する
+- 各ステップのmarker_x_percentとmarker_y_percentは、実際にアームを降ろすべきポイントを示す
+- ★最重要★ すべてのマーカーは景品の真上またはすぐ隣（景品の端から5%以内）に配置すること
+- アームが物理的に到達できない位置（景品から遠く離れた位置、機体の端）にマーカーを絶対に置かない
+- マーカー同士が重ならないよう、最低10%以上の間隔を空けること。ただし景品から離れすぎないこと
+- 複数ステップが同じ辺を攻める場合、マーカー位置は少しだけずらす（5~10%程度）
 - marker_labelは最大4文字（例: "1차밀기", "낙하점", "회전"）
 
 【ステップのdetail記載ルール — 超重要：初心者は「押す」の意味すら分からない】
@@ -228,6 +243,31 @@ export async function POST(request) {
 
     if (!parsed.steps || !Array.isArray(parsed.steps)) {
       return NextResponse.json({ error: '분석 결과 형식이 올바르지 않습니다.' }, { status: 500 });
+    }
+
+    // === 마커 위치 보정: 상품 근처로 클램프 ===
+    if (parsed.steps.length >= 2) {
+      // 모든 마커의 중심(상품 위치 추정)을 계산
+      const xs = parsed.steps.map(s => s.marker_x_percent);
+      const ys = parsed.steps.map(s => s.marker_y_percent);
+      const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
+      const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
+
+      // 중심에서 30% 이상 떨어진 마커는 상품 근처로 당김
+      const MAX_SPREAD = 30;
+      parsed.steps.forEach(step => {
+        const dx = step.marker_x_percent - cx;
+        const dy = step.marker_y_percent - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > MAX_SPREAD) {
+          const ratio = MAX_SPREAD / dist;
+          step.marker_x_percent = Math.round(cx + dx * ratio);
+          step.marker_y_percent = Math.round(cy + dy * ratio);
+        }
+        // 이미지 경계 안으로 제한
+        step.marker_x_percent = Math.max(5, Math.min(95, step.marker_x_percent));
+        step.marker_y_percent = Math.max(5, Math.min(95, step.marker_y_percent));
+      });
     }
 
     return NextResponse.json({ analysis: parsed });
