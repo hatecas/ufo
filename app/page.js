@@ -43,31 +43,53 @@ export default function Home() {
     }
   }, [currentGuide]);
 
-  // ===== 이미지 처리 =====
+  // ===== 이미지 처리 (클라이언트 리사이즈 → 전송 속도 대폭 향상) =====
   const handleFileSelect = useCallback((e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const type = file.type || 'image/jpeg';
-    const supported = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    setImageMediaType(supported.includes(type) ? type : 'image/jpeg');
     const reader = new FileReader();
     reader.onload = (ev) => {
-      setCurrentImage(ev.target.result);
-      setCurrentImageBase64(ev.target.result.split(',')[1]);
+      const dataUrl = ev.target.result;
+      setCurrentImage(dataUrl); // 원본은 화면 표시용
       setError(null);
-      // 세팅 미선택이면 setup으로, 선택됐으면 바로 분석
-      if (!machineType || !prizeType) {
-        setScreen('setup');
-      } else {
-        runAnalysis(ev.target.result.split(',')[1], supported.includes(type) ? type : 'image/jpeg');
-      }
+
+      // 클라이언트에서 1024px로 리사이즈 (5MB→200KB, API 전송 3-5초 단축)
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1024;
+        let { width, height } = img;
+        let resizedBase64;
+        let mediaType;
+
+        if (width <= MAX && height <= MAX) {
+          resizedBase64 = dataUrl.split(',')[1];
+          mediaType = file.type || 'image/jpeg';
+        } else {
+          const ratio = Math.min(MAX / width, MAX / height);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(width * ratio);
+          canvas.height = Math.round(height * ratio);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resizedBase64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+          mediaType = 'image/jpeg';
+        }
+
+        setCurrentImageBase64(resizedBase64);
+        setImageMediaType(mediaType);
+
+        if (!machineType || !prizeType) {
+          setScreen('setup');
+        } else {
+          runAnalysis(resizedBase64, mediaType);
+        }
+      };
+      img.src = dataUrl;
     };
     reader.readAsDataURL(file);
-    // input 초기화 (같은 파일 다시 선택 가능)
     e.target.value = '';
   }, [machineType, prizeType]);
 
-  // ===== AI 분석 (한 수) =====
+  // ===== AI 분석 (SSE 스트리밍 — 실시간 진행률) =====
   const runAnalysis = useCallback(async (base64Override, mediaTypeOverride) => {
     const base64 = base64Override || currentImageBase64;
     const mediaType = mediaTypeOverride || imageMediaType;
@@ -76,26 +98,10 @@ export default function Home() {
     setIsAnalyzing(true);
     setScreen('session');
     setError(null);
-    setLoadingProgress(0);
+    setLoadingProgress(10);
+    setLoadingText('📡 서버 전송 중...');
     setCurrentAnalysis(null);
     setMoveImage(null);
-
-    const steps = [
-      { pct: 15, text: '🔍 현재 상태 파악 중...' },
-      { pct: 35, text: '📐 상품 위치·기울기 분석 중...' },
-      { pct: 55, text: '🎯 최적의 다음 수 계산 중...' },
-      { pct: 75, text: '🤖 집게 위치 감지 중...' },
-      { pct: 90, text: '✅ 결과 생성 중...' },
-    ];
-
-    let idx = 0;
-    const interval = setInterval(() => {
-      if (idx < steps.length) {
-        setLoadingProgress(steps[idx].pct);
-        setLoadingText(steps[idx].text);
-        idx++;
-      }
-    }, 600);
 
     try {
       const res = await fetch('/api/analyze', {
@@ -110,23 +116,59 @@ export default function Home() {
         }),
       });
 
-      clearInterval(interval);
-      const data = await res.json();
+      // 일반 JSON 에러 응답 처리
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        throw new Error(data.error || '서버 오류');
+      }
 
-      if (!res.ok) throw new Error(data.error || '서버 오류');
+      // SSE 스트림 읽기
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      const imgSrc = currentImage || `data:${mediaType};base64,${base64}`;
 
-      setCurrentAnalysis(data.analysis);
-      setLoadingProgress(100);
-      setLoadingText('✅ 분석 완료!');
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      // 마킹 이미지 생성
-      setTimeout(async () => {
-        const marked = await drawNextMove(canvasRef.current, data.analysis, currentImage || `data:${mediaType};base64,${base64}`);
-        setMoveImage(marked);
-        setIsAnalyzing(false);
-      }, 300);
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop();
+
+        for (const part of parts) {
+          if (!part.startsWith('data: ')) continue;
+          let event;
+          try { event = JSON.parse(part.slice(6)); } catch { continue; }
+
+          if (event.status === 'calling_ai') {
+            setLoadingProgress(20);
+            setLoadingText('🔍 AI 분석 시작...');
+          } else if (event.status === 'generating') {
+            const pct = Math.min(88, 25 + (event.chars || 0) / 15);
+            setLoadingProgress(Math.round(pct));
+            setLoadingText('🤖 AI 생성 중...');
+          } else if (event.status === 'done') {
+            setCurrentAnalysis(event.analysis);
+            setLoadingProgress(100);
+            setLoadingText('✅ 완료!');
+            // 마킹 이미지 생성
+            setTimeout(async () => {
+              const marked = await drawNextMove(canvasRef.current, event.analysis, imgSrc);
+              setMoveImage(marked);
+              setIsAnalyzing(false);
+            }, 200);
+            return;
+          } else if (event.status === 'error') {
+            throw new Error(event.message || '분석 실패');
+          }
+        }
+      }
+
+      // 스트림 종료인데 done 이벤트 없으면 에러
+      throw new Error('분석 결과를 받지 못했습니다.');
     } catch (err) {
-      clearInterval(interval);
       setError(err.message || '분석 중 오류가 발생했습니다.');
       setIsAnalyzing(false);
     }
