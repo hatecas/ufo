@@ -520,9 +520,15 @@ export default function Home() {
                     <span className="move-action">{currentAnalysis.next_move?.action}</span>
                   </div>
 
-                  {/* 위치 가이드 (통합) */}
+                  {/* 위치 가이드 (좌우/앞뒤 줄바꿈) */}
                   {currentAnalysis.next_move?.visual_guide && (
-                    <div className="move-visual-guide">{currentAnalysis.next_move.visual_guide}</div>
+                    <div className="move-visual-guide">
+                      {currentAnalysis.next_move.visual_guide.split('\n').map((line, i) => (
+                        <div key={i} className={line.startsWith('좌우') ? 'guide-lr' : line.startsWith('앞뒤') ? 'guide-fb' : ''}>
+                          {line}
+                        </div>
+                      ))}
+                    </div>
                   )}
 
                   <div className="move-expected">

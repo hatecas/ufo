@@ -844,8 +844,16 @@ body {
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 13px; line-height: 1.7;
-  color: #DDD; white-space: pre-line;
+  color: #DDD;
+  display: flex; flex-direction: column; gap: 4px;
 }
+.guide-lr::before { content: '↔ '; opacity: 0.5; }
+.guide-fb::before { content: '↕ '; opacity: 0.5; }
+.guide-lr, .guide-fb {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.guide-fb { border-bottom: none; }
 
 /* ===== Move Reasoning ===== */
 .move-reasoning {
