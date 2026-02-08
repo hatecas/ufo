@@ -760,6 +760,18 @@ body {
 }
 .move-history-action { font-size: 13px; color: #CCC; }
 
+/* ===== Move Reasoning ===== */
+.move-reasoning {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 10px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #BBB;
+}
+
 /* ===== Success Box ===== */
 .success-box { text-align: center; padding: 30px 0; }
 .success-icon { font-size: 64px; margin-bottom: 10px; }

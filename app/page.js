@@ -398,6 +398,11 @@ export default function Home() {
                   {currentAnalysis.technique?.name_jp} / {currentAnalysis.technique?.name_kr}
                 </div>
 
+                {/* AI 관찰 결과 (왜 이 전략인지 근거) */}
+                {currentAnalysis.reasoning && (
+                  <div className="move-reasoning">{currentAnalysis.reasoning}</div>
+                )}
+
                 {/* 핵심: 이번 수 지시 */}
                 <div className="move-instruction-card">
                   <div className="move-instruction-header">

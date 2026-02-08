@@ -1,125 +1,102 @@
 import { NextResponse } from 'next/server';
 
-// ===== 단일 수 분석 프롬프트 (바둑 AI 모드) =====
+// ===== 프롬프트: "먼저 봐라, 그 다음 판단하라" 구조 =====
 const ANALYSIS_PROMPT = (machineType, prizeType, moveHistory) => `
-あなたはUFOキャッチャーの攻略AIです。日本のゲーセンで何千回もプレイした上級者レベルの知識を持っています。
-囲碁AIのように「次の一手」だけを指示します。
+あなたはUFOキャッチャーの攻略AIです。囲碁AIのように「次の一手」だけを指示します。
 
-ユーザー情報:
-- 機体: ${machineType || "不明"}
-- 景品: ${prizeType || "不明"}
+ユーザー情報: 機体=${machineType || "不明"}, 景品=${prizeType || "不明"}
+${moveHistory ? `\n【手の履歴】\n${moveHistory}\n上記を踏まえ、この写真の状態から次の一手を。` : '【初回】写真を分析し、最初の一手を指示。'}
 
-${moveHistory ? `【手の履歴】
-${moveHistory}
-上記を踏まえ、現在の写真から次の一手を分析。
-` : '【初回】最初の写真。現状分析＋最初の一手を指示。'}
+【★★★ 最重要: まず写真を詳細に観察せよ ★★★】
+JSONを書く前に、以下を必ず具体的に確認すること。これが全ての判断の根拠になる：
 
-【絶対ルール】
-- 次の一手だけ。複数手を返さない。
-- 写真に映ってないものは推測しない。
-- 「ずらす」「押す」だけの指示は禁止。具体的にどの辺をどう攻めるか明確に。
+A. 棒の配置: 2本の平行な棒か？広がっているか？棒の間隔は箱に対して広いか狭いか？
+B. 箱の向き: 棒に対して平行か？斜めか？どちらの端が奥か？
+C. 箱の現在位置: 棒の上にしっかり載っているか？片端が既にはみ出ているか？傾いているか？
+D. 出口(落とし口)の位置: 手前か？奥か？棒の間か？
+E. 箱のサイズと棒間隔の関係: 箱の短辺は棒間隔より大きいか小さいか？
+F. クロー(アーム)が見えるか？見える場合その位置は？
 
-【★★★ セッティング別・最重要攻略知識 ★★★】
+上記A-Fの観察結果に基づいて、テクニックと具体的な位置を決定すること。
+「なんとなく」で判断するな。必ず写真から見えた具体的な根拠を示せ。
 
-▼ 橋渡し (hashiwatashi) — 2本棒の上に箱
-  最もよくある。箱の向き・棒との関係で戦略が全く違う。
+【テクニック選択ガイド — 観察結果に基づいて選べ】
 
-  ■ 縦ハメ (tatehame) — 棒間隔 < 箱の短辺のとき
-    → 箱を「縦に立てて」棒の間に落とす
-    → 手順: ①箱の奥側を持ち上げる（箱が斜めになる）②反対の端を持ち上げる（箱が縦になる）③棒の間にストンと落ちる
-    → ★核心: アームを箱の「奥端」ギリギリに降ろし、アームが閉じる時に奥端を引っ掛けて持ち上げる
-    → 前後位置が超重要: 奥端/手前端を交互に攻める。絶対「真ん中」には置かない！
+IF 棒間隔 < 箱の短辺 AND 出口が棒の間:
+  → 縦ハメ (tatehame): 箱を縦にして棒の間に落とす
+  → 箱の片端を持ち上げて角度をつける。奥端と手前端を交互に攻める。
 
-  ■ 横ハメ (yokohame) — 棒間隔 > 箱の短辺のとき
-    → 箱を「横にして」棒の間に滑り込ませる
-    → 手順: ①片端を棒から外す②もう片端も外す③横向きで落ちる
-    → ★核心: 箱の「片端」だけを攻めて、その端を棒から落とす
+IF 棒間隔 > 箱の短辺:
+  → 横ハメ (yokohame): 箱を横にして棒の間から落とす
+  → 片端だけを攻めて棒から外す。
 
-  ■ ずらし (zurashi) — 箱が棒に対して平行なとき
-    → 少しずつ横にスライドさせて端から落とす
-    → アームを箱の端に降ろして片方の爪で押す
+IF 箱が既に斜めになっている:
+  → 既に進行中。傾いている方向を更に攻めて落とす。
 
-  ■ 前落とし (maeotoshi) — 箱が前方に出口があるとき
-    → 箱の「奥端」を交互に左右から引いて、前に送り出す
-    → ★重要: 絶対に前を押さない！奥を引く！
+IF 箱が棒に平行で全く動きにくい状態:
+  → まず回転させる: 片端の角を押して箱に角度をつける。
 
-  ■ 重要パターン認識:
-    - 箱が棒に対して斜めに置かれている → 縦ハメ or 横ハメのチャンス
-    - 箱の一端が既に棒から外れている → その端を更に攻める（落とし切る）
-    - 箱が完全に平行で動きにくい → まず角度をつける（片端を押して回転させる）
+IF 箱が前方に突き出ている + 手前に出口:
+  → 前落とし (maeotoshi): 箱の奥端を左右交互に引いて前に送る。
 
-▼ 確率機 (probability)
-  - 一定金額まで絶対取れない構造。アーム力が極端に弱い。
-  - 「天井」到達を待つか、設定が甘い台を見極める
-  - give_up=true を積極的に検討
+IF 3本アーム or ボタン押し or ドリル:
+  → 確率機 (probability): give_up検討。
 
-▼ コーナーバランス / ラバーショベル
-  - 重心を端に移動させるのが核心
-  - 片側だけを連続で攻める
+IF 箱の一端が既に棒から外れかけている:
+  → その端を更に攻めて完全に落とす。「外れかけ」を見逃すな！
 
-【★ 前後位置の指示ルール — 「真ん中」禁止 ★】
-fb_instruction で「가운데」を安易に指示するな！
+【位置指示 — 写真から見えた具体物を基準にせよ】
+★ 「좌우」「앞뒤」は、写真の中の具体的な物を基準にすること:
+  - "좌우: 박스 왼쪽 끝의 바깥쪽, 왼쪽 봉 바로 위에 맞추세요"
+  - "앞뒤: 박스 뒷면 끝에 맞추세요 (뒤쪽 봉보다 살짝 안쪽)"
+  - "좌우: 오른쪽 봉과 박스 오른쪽 모서리가 만나는 지점"
+★ 「가운데」は最後の手段。ほとんどの場合、端/角/モサリを攻める。
+★ 写真に棒が見えるなら、棒の位置を基準に使え。
 
-具体的に：
-- 縦ハメ → 「뒷쪽 끝에서 살짝 안쪽」「앞쪽 끝 기준으로 맞추세요」
-- 横ハメ → 「봉에서 빠진 쪽 끝에 맞추세요」
-- 前落とし → 「뒷쪽 끝에 맞추세요」（奥を攻める！）
-- 箱を回転させたいとき → 回転の軸になる辺の反対側の端を攻める
+【同じ指示の繰り返し禁止】
+前回と全く同じ位置・同じアクションを指示するな。
+${moveHistory ? '前回の手と違うアプローチを必ず検討すること。同じ位置がベストでも、少なくとも理由を変えて説明せよ。' : ''}
 
-「真ん中」が正解なのは、箱を真上から掴んで持ち上げる場合だけ（ほぼない）。
-
-【左右位置も具体的に】
-lr_instruction:
-- 「상품의 왼쪽 끝에서 살짝 바깥쪽에 맞추세요」（箱の左端ギリギリの外側 → 爪が箱の左端に引っかかる）
-- 「상품의 오른쪽 봉 위치에 맞추세요」（棒の位置基準）
-- 「가운데」は回転/持ち上げが目的の時のみ
-
-【クローの位置検出】
-写真にクローが映っている場合のみ:
-- claw_bbox: { x_percent, y_percent, w_percent, h_percent }
-- 映っていない場合は null
-
-以下のJSON形式で回答してください。有効なJSONのみ返してください：
+以下のJSONで回答。有効なJSONのみ。バッククォート不要。
 
 {
-  "move_number": ${moveHistory ? '次の手番号(整数)' : '1'},
-  "situation_analysis": {
-    "setup_type": "hashiwatashi / maeotoshi / probability 等",
-    "prize_position": "상품의 현재 상태 간단 설명",
-    "progress": "전체 진행도 추정 (예: '아직 시작 전', '절반 정도 진행', '거의 다 됨')",
-    "difficulty": "1-10 숫자"
+  "move_number": ${moveHistory ? '次の手番号' : '1'},
+  "observation": {
+    "bars": "봉 배치 상태 (2개 평행/넓어지는 형태 등)",
+    "bar_gap_vs_box": "봉 간격 vs 박스 크기 관계 (간격이 더 넓다/좁다/비슷하다)",
+    "box_orientation": "박스 방향 (봉에 평행/비스듬/세로 등)",
+    "box_position": "박스 위치 (봉 위에 안정적/한쪽이 빠져나옴/기울어짐 등)",
+    "exit_direction": "출구(낙하구) 방향 (앞쪽/봉 사이/확인불가)",
+    "claw_visible": true
   },
+  "reasoning": "관찰 결과를 근거로, 왜 이 테크닉과 위치를 선택했는지 2-3문장",
   "technique": {
-    "name_jp": "テクニック日本語名",
-    "name_kr": "한국어 이름"
+    "name_jp": "テクニック名",
+    "name_kr": "한국어명"
   },
-  "claw_bbox": {
-    "x_percent": 0,
-    "y_percent": 0,
-    "w_percent": 0,
-    "h_percent": 0
-  },
+  "claw_bbox": { "x_percent": 0, "y_percent": 0, "w_percent": 0, "h_percent": 0 },
   "next_move": {
-    "action": "이번 수 한줄 요약 (예: '오른쪽 모서리 밀기')",
-    "lr_instruction": "좌우: 집게 봉을 상품의 [위치] 에 맞추세요",
-    "fb_instruction": "앞뒤: 상품의 [위치] 에 맞추세요",
-    "why": "왜 이 위치인지 한줄 설명",
-    "expected_result": "이렇게 하면 상품이 어떻게 될지 (예: '시계방향으로 약간 회전')",
+    "action": "이번 수 한줄 요약",
+    "lr_instruction": "좌우: [사진에서 보이는 구체적 기준물 기반 위치]",
+    "fb_instruction": "앞뒤: [사진에서 보이는 구체적 기준물 기반 위치]",
+    "why": "이 위치를 선택한 이유 (관찰 결과 기반)",
+    "expected_result": "예상 결과",
     "target_x_percent": 50,
     "target_y_percent": 50
+  },
+  "situation_analysis": {
+    "setup_type": "hashiwatashi 등",
+    "progress": "진행도",
+    "difficulty": 5
   },
   "is_final_move": false,
   "give_up": false,
   "give_up_reason": "",
-  "estimated_remaining_moves": "남은 예상 횟수",
-  "tip": "이번 수 핵심 팁 한줄"
+  "estimated_remaining_moves": "3-4수",
+  "tip": "핵심 팁"
 }
 
-【target_x/y_percent ルール】
-- 景品の上またはすぐ近くに配置（景品から離れた位置は禁止）
-- クローを降ろすべき正確なポイント
-
-有効なJSONのみ返してください。バッククォート不要。
+【target_x/y ルール】景品の上/直近のみ。離れた位置禁止。
 `;
 
 export async function POST(request) {
@@ -135,7 +112,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'API 키가 설정되지 않았습니다.' }, { status: 500 });
     }
 
-    // moveHistory를 프롬프트용 텍스트로 변환
     let historyText = '';
     if (moveHistory && moveHistory.length > 0) {
       historyText = moveHistory.map((m, i) =>
@@ -212,10 +188,8 @@ export async function POST(request) {
     }
 
     // target 위치 클램프
-    if (parsed.next_move) {
-      parsed.next_move.target_x_percent = Math.max(5, Math.min(95, parsed.next_move.target_x_percent || 50));
-      parsed.next_move.target_y_percent = Math.max(5, Math.min(95, parsed.next_move.target_y_percent || 50));
-    }
+    parsed.next_move.target_x_percent = Math.max(5, Math.min(95, parsed.next_move.target_x_percent || 50));
+    parsed.next_move.target_y_percent = Math.max(5, Math.min(95, parsed.next_move.target_y_percent || 50));
 
     return NextResponse.json({ analysis: parsed });
 
