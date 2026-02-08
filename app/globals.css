@@ -760,6 +760,65 @@ body {
 }
 .move-history-action { font-size: 13px; color: #CCC; }
 
+/* ===== Technique Row (badge + force + success) ===== */
+.move-technique-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;
+}
+.force-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.5px;
+}
+.force-push { background: rgba(255,152,0,0.15); color: #FFB74D; border: 1px solid rgba(255,152,0,0.3); }
+.force-lift { background: rgba(33,150,243,0.15); color: #64B5F6; border: 1px solid rgba(33,150,243,0.3); }
+.success-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 900;
+}
+.success-high { background: rgba(76,175,80,0.15); color: #66BB6A; border: 1px solid rgba(76,175,80,0.3); }
+.success-mid { background: rgba(255,193,7,0.15); color: #FFD54F; border: 1px solid rgba(255,193,7,0.3); }
+.success-low { background: rgba(244,67,54,0.15); color: #EF5350; border: 1px solid rgba(244,67,54,0.3); }
+
+/* ===== Physics Panel (collapsible) ===== */
+.physics-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  margin: 8px 0;
+  overflow: hidden;
+}
+.physics-summary {
+  padding: 10px 14px;
+  font-size: 12px; font-weight: 700;
+  color: #888;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.physics-summary::before {
+  content: "▸ "; color: #666;
+}
+.physics-panel[open] .physics-summary::before {
+  content: "▾ ";
+}
+.physics-grid {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 0 14px 12px;
+}
+.physics-item {
+  display: flex; gap: 8px; align-items: baseline;
+}
+.physics-label {
+  flex-shrink: 0; width: 56px;
+  font-size: 10px; font-weight: 800; color: #FF3C50;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.physics-value {
+  font-size: 12px; color: #AAA; line-height: 1.5;
+}
+.stability-stable { color: #66BB6A; }
+.stability-unstable { color: #FF7043; }
+.stability-critical { color: #EF5350; font-weight: 700; }
+
 /* ===== Move Reasoning ===== */
 .move-reasoning {
   background: rgba(255, 255, 255, 0.04);

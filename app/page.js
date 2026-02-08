@@ -138,6 +138,7 @@ export default function Home() {
     setSessionMoves(prev => [...prev, {
       action: currentAnalysis.next_move.action,
       result: currentAnalysis.next_move.expected_result,
+      force_type: currentAnalysis.next_move.force_type || '',
     }]);
     setCurrentAnalysis(null);
     setMoveImage(null);
@@ -393,12 +394,59 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 테크닉 */}
-                <div className="move-technique-badge">
-                  {currentAnalysis.technique?.name_jp} / {currentAnalysis.technique?.name_kr}
+                {/* 테크닉 + 힘 타입 + 성공률 */}
+                <div className="move-technique-row">
+                  <div className="move-technique-badge">
+                    {currentAnalysis.technique?.name_jp} / {currentAnalysis.technique?.name_kr}
+                  </div>
+                  {currentAnalysis.next_move?.force_type && (
+                    <span className={`force-badge force-${currentAnalysis.next_move.force_type}`}>
+                      {currentAnalysis.next_move.force_type === 'push' ? '밀기' : '들기'}
+                    </span>
+                  )}
+                  {currentAnalysis.next_move?.success_rate != null && (
+                    <span className={`success-badge ${currentAnalysis.next_move.success_rate >= 60 ? 'success-high' : currentAnalysis.next_move.success_rate >= 30 ? 'success-mid' : 'success-low'}`}>
+                      {currentAnalysis.next_move.success_rate}%
+                    </span>
+                  )}
                 </div>
 
-                {/* AI 관찰 결과 (왜 이 전략인지 근거) */}
+                {/* 물리 분석 결과 (접이식) */}
+                {currentAnalysis.physics && (
+                  <details className="physics-panel">
+                    <summary className="physics-summary">물리 분석 결과</summary>
+                    <div className="physics-grid">
+                      <div className="physics-item">
+                        <span className="physics-label">지지점</span>
+                        <span className="physics-value">{currentAnalysis.physics.support_points}</span>
+                      </div>
+                      <div className="physics-item">
+                        <span className="physics-label">무게중심</span>
+                        <span className="physics-value">{currentAnalysis.physics.center_of_gravity}</span>
+                      </div>
+                      <div className="physics-item">
+                        <span className="physics-label">오버행</span>
+                        <span className="physics-value">{currentAnalysis.physics.overhang}</span>
+                      </div>
+                      <div className="physics-item">
+                        <span className="physics-label">마찰</span>
+                        <span className="physics-value">{currentAnalysis.physics.surface_friction}</span>
+                      </div>
+                      <div className="physics-item">
+                        <span className="physics-label">토크</span>
+                        <span className="physics-value">{currentAnalysis.physics.torque_analysis}</span>
+                      </div>
+                      <div className="physics-item">
+                        <span className="physics-label">안정도</span>
+                        <span className={`physics-value stability-${currentAnalysis.physics.stability?.split('/')[0]?.split(':')[0]?.trim()?.toLowerCase()}`}>
+                          {currentAnalysis.physics.stability}
+                        </span>
+                      </div>
+                    </div>
+                  </details>
+                )}
+
+                {/* AI 판단 근거 */}
                 {currentAnalysis.reasoning && (
                   <div className="move-reasoning">{currentAnalysis.reasoning}</div>
                 )}
