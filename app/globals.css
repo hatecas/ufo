@@ -654,6 +654,124 @@ body {
 /* ===== Footer ===== */
 .footer { text-align: center; padding: 28px 0 16px; font-size: 11px; color: #444; }
 
+/* ===== Photo Guide Box ===== */
+.photo-guide-box {
+  background: rgba(255, 200, 60, 0.08); border: 1px solid rgba(255, 200, 60, 0.2);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 18px; text-align: center;
+}
+.photo-guide-title { font-size: 15px; font-weight: 800; color: #FFD700; margin-bottom: 8px; }
+.photo-guide-text { font-size: 13px; color: #CCC; line-height: 1.5; }
+.photo-guide-text strong { color: #FFF; }
+.photo-guide-tips { display: flex; gap: 12px; justify-content: center; margin-top: 10px; }
+.photo-tip { font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+.photo-tip.good { background: rgba(0,200,100,0.15); color: #4CAF50; }
+.photo-tip.bad { background: rgba(255,60,80,0.12); color: #FF5252; }
+
+/* ===== Upload Buttons (카메라/갤러리 분리) ===== */
+.upload-buttons { display: flex; gap: 12px; margin-bottom: 18px; }
+.upload-btn { flex: 1; }
+.upload-btn-camera { background: linear-gradient(135deg, rgba(255,60,80,0.1), rgba(255,60,80,0.05)); border-color: rgba(255,60,80,0.3); }
+.upload-btn-gallery { background: linear-gradient(135deg, rgba(100,180,255,0.1), rgba(100,180,255,0.05)); border-color: rgba(100,180,255,0.3); }
+.preview-retake { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+
+/* ===== Session Header ===== */
+.session-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; margin-bottom: 14px;
+  background: rgba(255,60,80,0.06); border: 1px solid rgba(255,60,80,0.15);
+  border-radius: var(--radius);
+}
+.session-move-count { font-size: 15px; font-weight: 800; color: #FF3C50; }
+.session-reset-btn {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
+  color: #999; padding: 6px 14px; border-radius: 8px; font-size: 12px; cursor: pointer;
+}
+
+/* ===== Move Result ===== */
+.move-technique-badge {
+  display: inline-block; padding: 6px 14px; margin-bottom: 12px;
+  background: rgba(255,200,60,0.1); border: 1px solid rgba(255,200,60,0.25);
+  border-radius: 20px; font-size: 13px; font-weight: 700; color: #FFD700;
+}
+.move-instruction-card {
+  background: var(--card-bg); border: 2px solid rgba(255,60,80,0.3);
+  border-radius: var(--radius); padding: 20px; margin-bottom: 14px;
+}
+.move-instruction-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.move-number {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: linear-gradient(135deg, #FF3C50, #FF6B35);
+  color: #FFF; font-size: 18px; font-weight: 900; flex-shrink: 0;
+}
+.move-action { font-size: 18px; font-weight: 800; color: #FFF; }
+.move-positions { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.move-pos-row {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: rgba(255,255,255,0.03); padding: 12px; border-radius: 10px;
+  border-left: 3px solid #FF3C50;
+}
+.move-pos-label { font-size: 14px; font-weight: 800; color: #FF3C50; white-space: nowrap; min-width: 52px; }
+.move-pos-text { font-size: 14px; color: #EEE; line-height: 1.5; font-weight: 600; }
+.move-why { font-size: 12px; color: #888; margin-bottom: 10px; padding: 0 4px; }
+.move-expected {
+  font-size: 13px; color: #81C784; font-weight: 600;
+  padding: 10px 14px; background: rgba(76,175,80,0.08); border-radius: 8px;
+}
+.move-tip {
+  font-size: 13px; color: #FFD700; padding: 10px 14px; margin-bottom: 14px;
+  background: rgba(255,200,60,0.06); border-radius: 8px; border: 1px solid rgba(255,200,60,0.15);
+}
+
+/* ===== Session Progress ===== */
+.session-progress {
+  padding: 12px 14px; margin-bottom: 14px;
+  background: rgba(255,255,255,0.03); border-radius: 8px;
+}
+.progress-info { display: flex; justify-content: space-between; font-size: 12px; color: #888; }
+
+/* ===== Next Move Section ===== */
+.next-move-section { margin-top: 8px; }
+.next-move-label {
+  text-align: center; font-size: 13px; color: #CCC; margin-bottom: 12px; font-weight: 600;
+}
+
+/* ===== Waiting Photo ===== */
+.waiting-photo { text-align: center; padding: 30px 0; }
+.waiting-icon { font-size: 52px; margin-bottom: 14px; }
+.waiting-text { font-size: 15px; color: #CCC; margin-bottom: 20px; font-weight: 600; }
+
+/* ===== Move History ===== */
+.move-history {
+  margin-top: 20px; text-align: left;
+  background: var(--card-bg); border-radius: var(--radius); padding: 16px;
+}
+.move-history-title { font-size: 13px; font-weight: 800; color: #888; margin-bottom: 10px; }
+.move-history-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.move-history-item:last-child { border-bottom: none; }
+.move-history-num {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(255,60,80,0.15); color: #FF3C50;
+  font-size: 12px; font-weight: 800; flex-shrink: 0;
+}
+.move-history-action { font-size: 13px; color: #CCC; }
+
+/* ===== Success Box ===== */
+.success-box { text-align: center; padding: 30px 0; }
+.success-icon { font-size: 64px; margin-bottom: 10px; }
+.success-text { font-size: 20px; font-weight: 900; color: #4CAF50; margin-bottom: 20px; }
+
+/* ===== Retry Button ===== */
+.retry-btn {
+  display: inline-block; margin-top: 10px; padding: 8px 20px;
+  background: rgba(255,60,80,0.15); border: 1px solid rgba(255,60,80,0.3);
+  border-radius: 8px; color: #FF3C50; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+
 /* ===== Mobile Optimizations ===== */
 @media (max-width: 480px) {
   .container { padding: 0 14px; }
