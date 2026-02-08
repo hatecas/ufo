@@ -401,7 +401,7 @@ export default function Home() {
                   </div>
                   {currentAnalysis.next_move?.force_type && (
                     <span className={`force-badge force-${currentAnalysis.next_move.force_type}`}>
-                      {currentAnalysis.next_move.force_type === 'push' ? '밀기' : '들기'}
+                      {currentAnalysis.next_move.force_type === 'push' ? '밀기' : currentAnalysis.next_move.force_type === 'lift' ? '들기' : '회전'}
                     </span>
                   )}
                   {currentAnalysis.next_move?.success_rate != null && (
@@ -414,8 +414,14 @@ export default function Home() {
                 {/* 물리 분석 결과 (접이식) */}
                 {currentAnalysis.physics && (
                   <details className="physics-panel">
-                    <summary className="physics-summary">물리 분석 결과</summary>
+                    <summary className="physics-summary">물리 분석 상세</summary>
                     <div className="physics-grid">
+                      {currentAnalysis.physics.scale_reference && (
+                        <div className="physics-item">
+                          <span className="physics-label">스케일</span>
+                          <span className="physics-value">{currentAnalysis.physics.scale_reference}</span>
+                        </div>
+                      )}
                       <div className="physics-item">
                         <span className="physics-label">지지점</span>
                         <span className="physics-value">{currentAnalysis.physics.support_points}</span>
@@ -424,25 +430,52 @@ export default function Home() {
                         <span className="physics-label">무게중심</span>
                         <span className="physics-value">{currentAnalysis.physics.center_of_gravity}</span>
                       </div>
+                      {currentAnalysis.physics.cog_vs_support && (
+                        <div className="physics-item">
+                          <span className="physics-label">G위치</span>
+                          <span className="physics-value">{currentAnalysis.physics.cog_vs_support}</span>
+                        </div>
+                      )}
                       <div className="physics-item">
                         <span className="physics-label">오버행</span>
                         <span className="physics-value">{currentAnalysis.physics.overhang}</span>
                       </div>
                       <div className="physics-item">
-                        <span className="physics-label">마찰</span>
-                        <span className="physics-value">{currentAnalysis.physics.surface_friction}</span>
+                        <span className="physics-label">봉 마찰</span>
+                        <span className="physics-value">{currentAnalysis.physics.friction_bar}</span>
                       </div>
                       <div className="physics-item">
-                        <span className="physics-label">토크</span>
-                        <span className="physics-value">{currentAnalysis.physics.torque_analysis}</span>
+                        <span className="physics-label">집게 마찰</span>
+                        <span className="physics-value">{currentAnalysis.physics.friction_claw}</span>
                       </div>
+                      <div className="physics-item">
+                        <span className="physics-label">토크비교</span>
+                        <span className="physics-value">{currentAnalysis.physics.torque_comparison}</span>
+                      </div>
+                      {currentAnalysis.physics.slip_probability && (
+                        <div className="physics-item">
+                          <span className="physics-label">미끄럼</span>
+                          <span className="physics-value">{currentAnalysis.physics.slip_probability}</span>
+                        </div>
+                      )}
                       <div className="physics-item">
                         <span className="physics-label">안정도</span>
-                        <span className={`physics-value stability-${currentAnalysis.physics.stability?.split('/')[0]?.split(':')[0]?.trim()?.toLowerCase()}`}>
+                        <span className={`physics-value stability-${currentAnalysis.physics.stability?.trim()?.toLowerCase()}`}>
                           {currentAnalysis.physics.stability}
                         </span>
                       </div>
                     </div>
+                    {/* 가상 시뮬레이션 결과 */}
+                    {currentAnalysis.simulation && (
+                      <div className="simulation-section">
+                        <div className="simulation-title">시뮬레이션</div>
+                        <div className="simulation-grid">
+                          <span>{currentAnalysis.simulation.force_vector}</span>
+                          <span>{currentAnalysis.simulation.rotation_direction}</span>
+                          <span className="simulation-result">{currentAnalysis.simulation.slip_or_rotate}</span>
+                        </div>
+                      </div>
+                    )}
                   </details>
                 )}
 

@@ -1,175 +1,251 @@
 import { NextResponse } from 'next/server';
+import sharp from 'sharp';
 
-// ===== 물리 기반 크레인 게임 공략 알고리즘 프롬프트 =====
+// ===== 이미지 전처리: 대비(Contrast) 강화로 봉/재질 인식률 향상 =====
+async function enhanceImage(base64Data, mediaType) {
+  try {
+    const buffer = Buffer.from(base64Data, 'base64');
+    const enhanced = await sharp(buffer)
+      .normalize()                    // 히스토그램 평활화 → 봉/경계선 선명화
+      .sharpen({ sigma: 1.2 })        // 약간의 샤프닝 → 고무/비닐 텍스처 강조
+      .modulate({ brightness: 1.05 }) // 약간 밝게 → 어두운 기계 내부 보정
+      .toFormat(mediaType === 'image/png' ? 'png' : 'jpeg', {
+        quality: 90,
+      })
+      .toBuffer();
+    return enhanced.toString('base64');
+  } catch (err) {
+    console.warn('Image enhancement failed, using original:', err.message);
+    return base64Data; // 실패 시 원본 사용
+  }
+}
+
+// ===== 물리 기반 크레인 게임 공략 알고리즘 v2.0 프롬프트 =====
 const ANALYSIS_PROMPT = (machineType, prizeType, moveHistory) => `
 あなたはUFOキャッチャーの物理分析AIです。
-物理法則（トルク・摩擦力・重心）に基づいて最適な攻略ポイントを計算し、囲碁AIのように「次の一手」を指示します。
+物理法則（トルク・摩擦力・重心）に基づいて最適な攻略ポイントを座標で出力します。
+囲碁AIのように「次の一手」だけを正確に指示してください。
 
 ユーザー情報: 機体=${machineType || "不明"}, 景品=${prizeType || "不明"}
-${moveHistory ? `\n【手の履歴】\n${moveHistory}\n上記を踏まえ、この写真の状態から次の一手を分析。` : '【初回】写真を分析し、最初の一手を指示。'}
+${moveHistory ? `\n【手の履歴】\n${moveHistory}\n上記を踏まえ、この写真の現在状態から次の一手を分析。` : '【初回】写真を分析し、最初の一手を指示。'}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【STEP 1: 地形・物体の認識 (Terrain Mapping)】
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-写真から以下を正確に読み取れ：
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+写真から以下を正確に読み取れ:
 
 A. 支持構造 (Support Structure):
-   - 棒(Bar)は何本？平行か？間隔は？
-   - 棒にゴム(滑り止め)はあるか？
-   - 棒の傾斜はあるか？（前下がり/後ろ下がり）
+   - 棒(Bar)の本数、平行度、間隔
+   - 棒にゴム(滑り止め)があるか？ → 摩擦μ_barに直結
+   - 棒の傾斜有無（前下がり/後ろ下がり）
    - 壁・シールド(ツメ)の有無と高さ
 
 B. 景品の状態 (Prize State):
-   - 形状: 箱型/人形型/不規則型
-   - 素材: ビニール包装/紙箱/布 → 摩擦係数(μ)に影響
-   - 長軸・短軸の方向
-   - 箱の場合、棒に対して平行か斜めか
+   - 形状: 箱型 / 人形型 / 不規則型
+   - 素材(外装): ビニール包装 / 紙箱 / 布
+   - 長軸・短軸の方向、棒に対して平行か斜めか
+   - フィギュア箱の場合: キャラクター絵柄の向き（顔がある面=重い側の可能性大）
 
 C. 接触点分析 (Contact Points):
-   - 景品が棒に触れている点は何箇所？どこ？
-   - 安定(Stable)か不安定(Unstable)か？
-   - はみ出し(Overhang)があるか？どちら方向にどの程度？
+   - 景品が棒に触れている箇所数と位置
+   - 安定(Stable)/不安定(Unstable)/臨界(Critical)
+   - はみ出し(Overhang): 方向と棒からの距離
 
 D. 落とし口 (Exit):
    - 位置: 手前/奥/棒の間/左/右
-   - 景品から落とし口までの最短経路
+   - 景品から落とし口までの最短経路と障害物
 
 E. クロー(アーム):
-   - 見えるか？ 位置は？ 2本アーム or 3本アーム？
-   - 推定アーム力: 強/中/弱（機種から推定）
+   - 2本アーム or 3本アーム
+   - 集計の先端にゴム(足)があるか？ → μ_clawに直結
+   - 推定アーム力: 強/中/弱
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【STEP 2: 物理パラメータの推定 (Physics Estimation)】
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【STEP 2: 物理パラメータの推定 (Physics Engine)】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-■ 重心(Center of Gravity) 推定:
-- 箱型: 幾何学的中心 ≈ 重心
-- 人形型: 上半身(頭部)側に偏る → 頭部側が重い
-- 不規則: 色が濃い部分/大きい部分に重心が偏る
-- 現在の傾きがあれば、重心がどちら側に寄っているか推定
+■ 2-A. スケール推定 (Pixel → cm 変換):
+★ 棒の太さ(通常2~3cm)、または箱の一辺(短辺≒10cm、長辺≒20cmが一般的)を
+  「基準の物差し(Reference Ruler)」とせよ。
+  例: "棒の太さが写真上で約30px → 30px ≈ 2.5cm → 1px ≈ 0.083cm"
+  この比率を使って以降の距離d値をcm単位で推定すること。
 
-■ トルク計算の考え方 (T = F × d × sinθ):
-- F: クローの押す力/掴む力
-- d: 支点(棒)からクローの接触点までの距離
-- θ: 力の方向と腕の角度
-→ dが大きいほど(棒から遠いほど)少ない力で大きく回転できる
-→ 棒に近すぎる場所を攻めても回転しにくい！
+■ 2-B. 重心(Center of Gravity) 推定:
+- 箱型: 幾何学的中心 ≈ 重心（ただし中身が偏っている場合あり）
+- 人形型(フィギュア):
+  → 箱の絵柄でキャラの顔/上半身が描かれている面 = 重い側
+  → 派手なグラフィック・顔がある方向に重心が偏ると仮定
+  → 箱内で緩衝材がある場合、中身は箱の片側に寄っている可能性あり
+- 不規則型: 色が濃い/大きい部分に重心偏り
+- 現在傾いている → 重心がその方向に偏っている証拠
 
-■ 摩擦の判断:
-- ビニール包装 → μ低い → 滑りやすい → 「押し(Push)」が有効
-- 紙箱/布 → μ高い → 掴めるかも → 「持ち上げ(Lift)」も検討
-- 棒にゴム → μ高い → 簡単にはズレない → 持ち上げ系が必要
+★ 重心(G)が2本の棒の中間線に対してどちら側にあるか判定:
+  - G が棒の間の中央付近 → "安定(stable)" → 大きな力が必要
+  - G が片方の棒に寄っている → "臨界(critical)" → もう少しで落ちる
+  - G が棒の外側にはみ出している → "不安定(unstable)" → 軽い力で落下
 
-■ 安定性の判断:
-- 重心が支持点(2本の棒の間)の上にある → 安定 → 大きな力が必要
-- 重心が支持点の外側にはみ出している → 不安定 → 少しの力で落ちる
-- 片端がすでに浮いている → 非常に不安定 → そこを攻めれば落ちる
+■ 2-C. 摩擦力の2面分析:
+★ 棒の摩擦(μ_bar)と集計の摩擦(μ_claw)を分けて考えよ。
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+μ_bar(棒側):
+  - ゴムテープ付き → μ_bar ≈ 0.7~0.9 (高摩擦) → 景品が滑りにくい
+    → 「押し(Push)」では動かない → 「持ち上げ(Lift)」か「回転(Torque)」が有効
+  - 金属棒(ゴムなし) → μ_bar ≈ 0.2~0.4 (低摩擦) → 滑りやすい
+    → 「押し(Push)」が有効
+
+μ_claw(集計側):
+  - 集計先端にゴム足あり → μ_claw ≈ 0.6~0.8 → 掴む力UP
+    → 「持ち上げ(Lift)」の成功率が上がる
+  - ゴム足なし(プラスチック) → μ_claw ≈ 0.2~0.3
+    → 掴んでも滑る → 「押し(Push)」に特化
+
+判定ロジック:
+  - μ_bar高 & μ_claw低 → Push無効、Lift微妙 → Torque(回転)一択
+  - μ_bar低 & μ_claw低 → Push有効(滑らせる)
+  - μ_bar低 & μ_claw高 → Lift有効(掴んで引く)
+  - μ_bar高 & μ_claw高 → Lift有効(掴んで持ち上げ)
+
+■ 2-D. トルク計算 (T = F × d × sinθ):
+★ STEP 2-Aで推定したスケールを使い、d値をcm単位で算出すること。
+
+- F: クローの力(機種から推定)
+- d: 支点(棒)から接触点までの距離【cm単位で推定】
+- θ: 力と棒の角度(真下 = 90° = sinθ最大 = 最効率)
+
+計算例:
+  "棒から箱の奥端まで ≈ 8cm(推定)。d=8cm、θ≈80°、T=F×8×sin80°≈F×7.9"
+  "棒から箱の中央まで ≈ 3cm。d=3cm、T=F×3×sin80°≈F×2.95"
+  → 奥端の方がトルク2.7倍 → 奥端を攻めるべき
+
+★ 必ず2箇所以上の候補点で d を比較し、最も d が大きい点を選べ。
+
+■ 2-E. 仮想シミュレーション (Virtual Simulation):
+選択した攻略点にクローが接触した際:
+1. 力のベクトルを描け（下方向の力 → 景品に対してどの角度で作用するか）
+2. そのベクトルが重心(G)に対してどの方向の回転モーメントを生むか計算
+3. 景品が棒上で滑る確率(Slip probability)を推定:
+   Slip_prob = 1 - (μ_bar × N / F_horizontal)
+   Slip_prob > 0.7 なら「滑り」を前提とした Push 戦略
+   Slip_prob < 0.3 なら「回転」や「持ち上げ」が必要
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【STEP 3: セッティング別 最適攻略 (Setting-specific Logic)】
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-■ 橋渡し(Hashiwatashi) + 縦ハメ(Tatehame):
-条件: 棒間隔 < 箱の短辺（箱は棒の間に落ちない状態）
-戦略: 箱を縦に傾けて棒の間に通す
-物理: 箱の端を持ち上げて角度θをつける。θが大きくなるほど重心が棒の内側に移動し、自重で落ちる。
-攻撃点: 棒から最も遠い端（d最大 → トルク最大）
-手順:
-  1手目: 奥端の角を攻める（持ち上げ）→ 手前が下がり始める
-  2手目: 手前端の角を攻める → 奥が下がる → 角度が増す
-  3手目以降: 交互に繰り返し。角度が45°超えたら自重で落下。
-位置: 攻める端の「棒から最も遠い角」が最適。中央ではない！
+■ 橋渡し + 縦ハメ(Tatehame):
+条件: 棒間隔 < 箱の短辺
+物理: 端を持ち上げ → 角度θ増加 → 重心Gが棒内側に移動 → 自重落下
+攻撃: 棒から最も遠い端(d最大)。中央は×。
+  → d値をcm推定で比較し「奥端d=Xcm vs 中央d=Ycm → 奥端がZ倍効率的」と明記
+手順: 奥→手前→奥と交互。45°超で落下期待。
+μ_bar高い場合: 滑らないので持ち上げで角度をつける戦略が有効。
 
 ■ 橋渡し + 横ハメ(Yokohame):
-条件: 棒間隔 > 箱の短辺（箱の短辺が棒の間を通る）
-戦略: 箱を横にして棒の間から落とす
-物理: 片端を棒から外すことで、重心が片方の棒だけで支える状態に → 不安定化
-攻撃点: 外したい側の端、棒の真上 or やや外側
-手順: 片端を繰り返し攻めて少しずつ棒から外す。反対側は攻めない。
+条件: 棒間隔 > 箱の短辺
+物理: 片端を棒から外す → 1本支持に → 不安定化 → 落下
+攻撃: 外したい端、棒の真上〜やや外側
+手順: 同じ端を繰り返し。反対側は攻めない。
 
 ■ 前落とし(Maeotoshi):
-条件: 景品が前方に突き出ている + 手前に出口
-物理: 奥端を押すことで景品全体を前方にスライド。μが低ければ効果大。
-攻撃点: 必ず奥端(後ろ側)! 左右を交互に変えて蛇行前進させる。
-注意: 前端を攻めるのは無意味(押し戻してしまう)。
+条件: 前方突出 + 手前に出口
+物理: μ_bar低 → 奥端を押して前方スライド。μ_bar高 → 奥端を持ち上げて前方に回転。
+攻撃: 必ず奥端！左右交互で蛇行前進。
+注意: 前端を攻めるのは逆効果。
 
-■ くるりんぱ(Kurulinpa) / 回転:
-条件: 箱が棒に平行で安定しすぎている
-物理: 箱の角を押して回転モーメントを発生させる。支点は対角の棒接触点。
-攻撃点: 四隅の一つ。棒から最も遠い角が最も回転しやすい(d最大)。
-期待: 箱が回転して斜めになり、次のステップで縦ハメ/横ハメに移行。
+■ くるりんぱ(Kurulinpa):
+条件: 安定しすぎて動かない
+物理: 箱の角を攻撃 → 対角の棒接触点を支点に回転モーメント発生
+攻撃: 4隅のうち棒から最も遠い角(d最大)。
+期待: 回転して斜めに → 次手で縦ハメ/横ハメに移行。
 
-■ 確率機(3本アーム/ボタン):
-条件: 3本アーム、ボタンで開閉
-判断: 設定次第。明らかに弱設定なら give_up 推奨。
+■ 確率機(3本アーム):
+条件: 3本アーム、ボタン開閉
+判断: 弱設定→give_up推奨。強設定→重心真上狙い。
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-【STEP 4: 最適攻略点の導出 (Optimal Point)】
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【STEP 4: アンカーポイント座標計算 (Anchor-based Targeting)】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-STEP 1-3の分析結果から:
-1. トルクが最大になる点（棒から最も離れた景品の端/角）
-2. 重心を不安定方向に移動させる力の方向
-3. 落とし口への最短経路
-→ これらを総合して「最もエネルギー効率の良い座標」を導出。
+★★★ target_x/y_percent を決定する前に、必ず以下の3点を定義せよ ★★★
 
-★ 位置指示は必ず写真内の具体物を基準にすること！
-★ 「가운데」「끝부분」のような曖昧表現は禁止！
-★ 具体例:
-  - "좌우: 왼쪽 봉 바로 위, 박스 왼쪽 가장자리에서 바깥으로 1cm"
-  - "앞뒤: 박스 뒤쪽 모서리, 뒤쪽 봉에서 2cm 안쪽 (뒤쪽 봉이 보이는 위치 기준)"
-  - "좌우: 오른쪽 봉과 박스 오른쪽 면이 만나는 교차점"
-  - "앞뒤: 박스 앞쪽 면에서 1/3 지점 (봉 2개 중 앞쪽 봉 근처)"
+1. A1 = 景品の左上角の座標 (x%, y%)
+2. A2 = 景品の右下角の座標 (x%, y%)
+3. A3 = 手前の棒の中心線のy座標 (y%)
+
+これら3つのアンカーポイントを基準として、ターゲット座標を相対的に計算:
+  "景品はA1(20%,30%)〜A2(65%,70%)に位置。
+   手前棒はA3≈y55%。
+   攻撃点は景品の奥端=A1のy付近。
+   A1のxから景品幅の30%右 → target_x = 20 + (65-20)×0.3 = 33.5%
+   target_y = A1のy+5% = 35%"
+
+このように必ず計算過程を示して座標を決定すること。
+「なんとなく50%」は禁止。
 
 【禁止事項】
 - 同じ指示の繰り返し禁止。${moveHistory ? '前回と違う位置/アプローチを必ず検討。' : ''}
-- 根拠なき指示の禁止。必ずSTEP1-3の分析結果を引用すること。
+- 根拠なき指示の禁止。必ずSTEP1-4の物理計算を引用。
+- 曖昧な位置表現(「가운데」「끝부분」)禁止。具体的なcm/棒基準で。
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 以下のJSONで回答。有効なJSONのみ。バッククォート不要。
 
 {
   "move_number": ${moveHistory ? '次の手番号' : '1'},
   "physics": {
-    "support_points": "지지점 분석: 봉 위치, 접촉점 수, 안정/불안정 상태",
-    "center_of_gravity": "무게중심 추정: 어디에 무게가 쏠려있는지 + 근거",
-    "overhang": "오버행(빠져나온 정도): 어느 방향으로 얼마나 빠져나왔는지",
-    "surface_friction": "표면 마찰: 재질 추정(비닐/종이/천) → 밀기(Push) vs 들기(Lift) 판단",
-    "torque_analysis": "이 공략점에서의 토크: 지지점(봉)에서 거리 d가 얼마나 되는지, 왜 이 점이 토크 최대인지",
-    "stability": "안정도: stable/unstable/critical (중심이 지지 범위 안/밖/경계)"
+    "scale_reference": "스케일 기준: [봉 두께 Xpx ≈ 2.5cm → 1px ≈ Ycm] 또는 [박스 단변 Xpx ≈ 10cm]",
+    "support_points": "지지점: 봉 위치/간격, 접촉점 수, 고무 유무",
+    "center_of_gravity": "무게중심(G): 위치 추정 + 근거 (피규어면 얼굴 방향, 박스면 기하학적 중심)",
+    "cog_vs_support": "G가 봉 사이 중앙/한쪽 치우침/밖으로 나감 → stable/critical/unstable",
+    "overhang": "오버행: 어느 방향으로 약 Xcm 빠져나옴 (스케일 기준 적용)",
+    "friction_bar": "봉 마찰(μ_bar): 고무 유무 → 수치 추정 → 밀기 가능 여부",
+    "friction_claw": "집게 마찰(μ_claw): 고무발 유무 → 수치 추정 → 들기 가능 여부",
+    "torque_comparison": "토크 비교: 후보점A d=Xcm T≈F×Y vs 후보점B d=Xcm T≈F×Y → A가 Z배 효율적",
+    "slip_probability": "미끄럼 확률: 0~1 (0.7이상이면 Push, 0.3이하면 Lift/Torque)",
+    "stability": "stable / critical / unstable"
   },
-  "reasoning": "STEP 1-4 분석을 종합한 판단 근거. 왜 이 테크닉, 이 위치인지 물리적 근거 3-4문장",
+  "anchors": {
+    "prize_top_left": { "x_pct": 0, "y_pct": 0 },
+    "prize_bottom_right": { "x_pct": 0, "y_pct": 0 },
+    "front_bar_y_pct": 0
+  },
+  "reasoning": "STEP 1-4를 종합한 물리적 판단 근거 3-4문장. 반드시 d값(cm), μ값, 토크 비교를 인용",
   "technique": {
-    "name_jp": "テクニック名 (縦ハメ/横ハメ/前落とし/くるりんぱ/確率機)",
-    "name_kr": "한국어명 (세로하메/가로하메/앞떨어뜨리기/쿠루린파/확률기)"
+    "name_jp": "テクニック名",
+    "name_kr": "한국어명"
   },
   "claw_bbox": { "x_percent": 0, "y_percent": 0, "w_percent": 0, "h_percent": 0 },
   "next_move": {
-    "action": "이번 수 한줄 요약 (밀기/들기/회전 + 방향)",
-    "lr_instruction": "좌우: [사진 속 봉/박스 모서리/꼭지점 기준 + cm단위 거리감]",
-    "fb_instruction": "앞뒤: [테크닉별 최적 위치 — 토크가 최대가 되는 점 기준]",
-    "force_type": "push 또는 lift (마찰력 분석 기반 판단)",
-    "why": "물리적 근거: 토크 d=최대, 무게중심 방향, 마찰계수 고려",
-    "expected_result": "예상 결과: 어느 방향으로 몇도 회전/몇cm 이동 예상",
+    "action": "이번 수 한줄 요약 (Push/Lift/Torque + 방향)",
+    "lr_instruction": "좌우: [봉/박스 모서리 기준 + cm 거리 + 앵커 좌표 근거]",
+    "fb_instruction": "앞뒤: [토크 최대점 기준 + cm 거리 + 앵커 좌표 근거]",
+    "force_type": "push / lift / torque (μ_bar·μ_claw 분석 기반)",
+    "why": "물리 근거: d=Xcm(토크 최대), μ_bar=X(밀기 가능/불가), G 방향=Y",
+    "expected_result": "예상: X방향으로 약 Y도 회전 / X방향으로 약 Ycm 이동",
     "success_rate": 65,
     "target_x_percent": 50,
     "target_y_percent": 50
   },
+  "simulation": {
+    "force_vector": "힘 방향: 아래쪽 → 박스에 대해 X도 각도로 작용",
+    "rotation_direction": "회전 방향: 시계/반시계 방향으로 약 X도",
+    "slip_or_rotate": "결과 예측: 미끄러짐(slide) / 회전(rotate) / 들림(lift)"
+  },
   "situation_analysis": {
     "setup_type": "hashiwatashi/tatehame/yokohame/maeotoshi/kurulinpa/probability",
-    "progress": "초기/진행중(약 30%)/거의 완료(80%) 등",
+    "progress": "초기/진행중(약 30%)/거의 완료(80%)",
     "difficulty": 5,
-    "remaining_path": "낙하구까지의 남은 경로 설명"
+    "remaining_path": "낙하구까지 남은 경로"
   },
   "is_final_move": false,
   "give_up": false,
   "give_up_reason": "",
   "estimated_remaining_moves": "3-4수",
-  "tip": "이 상황에서 가장 중요한 핵심 팁 1줄"
+  "tip": "이 상황 핵심 팁 1줄"
 }
 
-【座標ルール】target_x/yは景品の上/直近のみ。離れた位置禁止。
-【success_rate】物理分析の確信度を0-100で。根拠なく高い値をつけるな。
+【座標ルール】target_x/yは景品の上/直近のみ。離れた位置禁止。アンカー計算に基づくこと。
+【success_rate】物理分析の確信度0-100。slip_prob、トルク比、安定度を考慮して算出。根拠なく高い値禁止。
 `;
 
 export async function POST(request) {
@@ -184,6 +260,9 @@ export async function POST(request) {
     if (!apiKey) {
       return NextResponse.json({ error: 'API 키가 설정되지 않았습니다.' }, { status: 500 });
     }
+
+    // 이미지 전처리: 대비 강화 → 봉/재질 인식률 향상
+    const enhancedBase64 = await enhanceImage(imageBase64, imageMediaType);
 
     let historyText = '';
     if (moveHistory && moveHistory.length > 0) {
@@ -201,7 +280,7 @@ export async function POST(request) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 3000,
+        max_tokens: 4000,
         messages: [{
           role: 'user',
           content: [
@@ -210,7 +289,7 @@ export async function POST(request) {
               source: {
                 type: 'base64',
                 media_type: imageMediaType || 'image/jpeg',
-                data: imageBase64,
+                data: enhancedBase64,
               },
             },
             {
@@ -260,9 +339,19 @@ export async function POST(request) {
       return NextResponse.json({ error: '분석 결과 형식이 올바르지 않습니다.' }, { status: 500 });
     }
 
-    // target 위치 클램프
-    parsed.next_move.target_x_percent = Math.max(5, Math.min(95, parsed.next_move.target_x_percent || 50));
-    parsed.next_move.target_y_percent = Math.max(5, Math.min(95, parsed.next_move.target_y_percent || 50));
+    // 앵커 기반 좌표 검증: target이 경품 범위 밖이면 클램프
+    const anchors = parsed.anchors;
+    if (anchors?.prize_top_left && anchors?.prize_bottom_right) {
+      const minX = Math.max(5, (anchors.prize_top_left.x_pct || 5) - 10);
+      const maxX = Math.min(95, (anchors.prize_bottom_right.x_pct || 95) + 10);
+      const minY = Math.max(5, (anchors.prize_top_left.y_pct || 5) - 10);
+      const maxY = Math.min(95, (anchors.prize_bottom_right.y_pct || 95) + 10);
+      parsed.next_move.target_x_percent = Math.max(minX, Math.min(maxX, parsed.next_move.target_x_percent || 50));
+      parsed.next_move.target_y_percent = Math.max(minY, Math.min(maxY, parsed.next_move.target_y_percent || 50));
+    } else {
+      parsed.next_move.target_x_percent = Math.max(5, Math.min(95, parsed.next_move.target_x_percent || 50));
+      parsed.next_move.target_y_percent = Math.max(5, Math.min(95, parsed.next_move.target_y_percent || 50));
+    }
 
     // success_rate 클램프
     if (parsed.next_move.success_rate != null) {
